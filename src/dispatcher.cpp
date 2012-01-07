@@ -36,6 +36,8 @@ namespace ACES{
     {
         //Dispatcher must have an activity of some sort or scripts won't run
         //properly
+        //TODO: Add a function to load a math component and link it to other peers
+        //TODO: Make this happen by defualt during the constructor
         this->setActivity( new RTT::Activity(5, 1.0/10.0, 0, name) );
         this->addOperation("addHardware", &Dispatcher::addHardware, this,
                            RTT::OwnThread).doc("add new hardware")
@@ -75,8 +77,15 @@ namespace ACES{
                            .arg("type", "_mainType_ _subType_")
                            .arg("args", "arguments specific to the type");
 
+        this->addOperation("addMath", &Dispatcher::addTaskMath, this,
+                           RTT::OwnThread).doc("Include math functions");
+
         this->addOperation("startDebug", &Dispatcher::startDebug, this,
                            RTT::OwnThread).doc("Start debugging statements");
+
+        this->addOperation("printWarning", &Dispatcher::printWarning, this,
+                           RTT::OwnThread).doc("Start debugging statements")
+                           .arg("string", "Send a string message to the RTT Log at Warning level");
 
         this->addOperation("stopDebug", &Dispatcher::stopDebug, this,
                            RTT::OwnThread).doc("Stop debugging statements");
@@ -332,6 +341,17 @@ namespace ACES{
             //s = (ProtoState*) new TestSuite::Spinner(cfg, args, sampling,
             //                                         portnum);
         } 
+        else if ( type == "HuboSmoothed"){
+            std::istringstream str(args);
+            int id = 0;
+            int filterLength = 30;
+            str >> id;
+            str >> filterLength;
+            //TODO: hit the argument limit here, so filter length has to be set
+            //manually. Add to config string?
+            s = (ProtoState*) new ACES::FilteredState<float>(cfg, id, sampling,
+                                                    portnum,filterLength);
+        }
         #endif
         #ifdef WEBOTS
         if( type == "Webots") {
@@ -656,4 +676,17 @@ namespace ACES{
         //stopHW();
     }
 
+    void Dispatcher::printWarning(std::string s){
+        ///Send a message to log (visible by default)
+        ///
+        ///
+        RTT::Logger::log(RTT::Logger::Warning)
+            <<  s  << RTT::endlog();
+    }
+
+    /** Add a task for math operations */
+    bool Dispatcher::addTaskMath(){
+        TaskMath<float>* math = new TaskMath<float>("math");
+        return connectPeers(math);
+    }
 } 

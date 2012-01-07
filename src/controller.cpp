@@ -61,10 +61,10 @@ namespace ACES{
         this->addOperation("clearCtrl", &Controller::clearCtrl, this,
                            RTT::OwnThread)
                            .doc("Clear the entire set point buffer");
-
-        this->addAttribute("packetsPerSP", packetsPerSP);
         this->ports()->addPort("packetReport", packetReporter).doc(
-               "Port for Hardware to report reception of setpoints");
+                            "Port for Hardware to report reception of setpoints");
+        this->addAttribute("packetsPerSP", packetsPerSP);
+
 
         curMap = NULL;
     }

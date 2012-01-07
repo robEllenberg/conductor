@@ -52,6 +52,8 @@ namespace Hubo{
             zeroTicks[i] = 0;
             zeroCCW[i] = false;
             harmonic[i] = 0;
+            minP[i] = 0;
+            maxP[i] = 0;
         }
     }
 
@@ -66,7 +68,7 @@ namespace Hubo{
     int MotorCredentials::getChannels(){
         return channels;
     }
-
+    
     bool MotorCredentials::setDirection(int chan, float dir){
         if(checkChannel(chan)){
             direction[chan] = dir;
@@ -101,31 +103,6 @@ namespace Hubo{
         return false;
     }
 
-/*
-    bool MotorCredentials::setOffsetPulse(int chan, int offset){
-        if(checkChannel(chan)){
-            offsetPulse[chan] = offset;
-            return true;
-        }
-        return false;
-    }
-
-    bool MotorCredentials::setRevOffset(int chan, int offset){
-        if(checkChannel(chan)){
-            revOffset[chan] = offset;
-            return true;
-        }
-        return false;
-    }
-
-    bool MotorCredentials::setCCW(int chan, bool ccw){
-        if(checkChannel(chan)){
-            CCW[chan] = ccw;
-            return true;
-        }
-        return false;
-    }
-*/
     bool MotorCredentials::setHarmonic(int chan, int harm){
         if(checkChannel(chan)){
             harmonic[chan] = harm;
@@ -148,28 +125,6 @@ namespace Hubo{
         return 0;
     }
 
-/*
-    int MotorCredentials::getOffsetPulse(int chan){
-        if((chan < channels) and (chan >= 0)){
-            return offsetPulse[chan];
-        }
-        return 0;
-    }
-
-    int MotorCredentials::getRevOffset(int chan){
-        if((chan < channels) and (chan >= 0)){
-            return revOffset[chan];
-        }
-        return 0;
-    }
-
-    bool MotorCredentials::getCCW(int chan){
-        if((chan < channels) and (chan >= 0)){
-            return CCW[chan];
-        }
-        return false;
-    }
-*/
     unsigned int MotorCredentials::getHarmonic(int chan){
         if((chan < channels) and (chan >= 0)){
             return harmonic[chan];
@@ -198,6 +153,7 @@ namespace Hubo{
         return false;
     }
 
+    //Rob's functions start here
     bool MotorCredentials::checkChannel(int chan){
         if(chan >= 0 && chan < channels){
             return true;
@@ -208,6 +164,24 @@ namespace Hubo{
                 << RTT::endlog();
         }
         return false; 
+    }
+
+    bool MotorCredentials::setPositionLimits(int chan,float minPos,float maxPos){
+        ///Apply position limits to the given device channel
+        if (checkChannel(chan)){
+            if (minPos<maxPos){
+                minP[chan]=minPos;
+                maxP[chan]=maxPos;
+                return true;
+            }
+            else{
+            RTT::Logger::log(RTT::Logger::Warning) <<  
+                "Invalid position range: min P(" << minP 
+                << ") is not less than maxP (" << maxP << ")."
+                << RTT::endlog();
+            }
+        }
+        return false;
     }
 
     void MotorCredentials::printme(){
@@ -238,6 +212,18 @@ namespace Hubo{
         RTT::Logger::log() << "]\nHarmonic: [";
         for(int i = 0; i < ctrlSize; i++){
             RTT::Logger::log() << harmonic[i] << ", ";
+        }
+        RTT::Logger::log() <<  "]";
+        
+        RTT::Logger::log() << "]\nMinimum Position: [";
+        for(int i = 0; i < ctrlSize; i++){
+            RTT::Logger::log() << minP[i] << ", ";
+        }
+        RTT::Logger::log() <<  "]";
+
+        RTT::Logger::log() << "]\nMaximum Position: [";
+        for(int i = 0; i < ctrlSize; i++){
+            RTT::Logger::log() << maxP[i] << ", ";
         }
         RTT::Logger::log() <<  "]" << RTT::endlog();
     }
@@ -612,14 +598,14 @@ namespace Hubo{
         }
         else if( offsetRange(SENSOR_FT_RXDF, c->id)){
             idClass = SENSOR_FT_RXDF;
-            equalizer = 0x2F;
+            equalizer = 0x30;
             r1 = assemble2Byte(c->data[0], c->data[1]); //Mx
             r2 = assemble2Byte(c->data[2], c->data[3]); //My
             r3 = assemble2Byte(c->data[4], c->data[5]); //Fz
         }
         else if( offsetRange(SENSOR_AD_RXDF, c->id)){
             idClass = SENSOR_AD_RXDF;
-            equalizer = 0x2F;
+            equalizer = 0x40;
             r1 = assemble2Byte(c->data[0], c->data[1]); //Acc1
             r2 = assemble2Byte(c->data[2], c->data[3]); //Acc2
             r3 = assemble2Byte(c->data[4], c->data[5]); //Gyro1
@@ -645,8 +631,9 @@ namespace Hubo{
             //printf(failed to match a packet)
             return pw;
         }
-
-        int id = (c->id) - ((int)idClass) + equalizer;
+        //IMPORTANT: the device offsets are now renumbered slightly to make them consistent.
+        // hte new ids for the force torques are 31,32,36, while the new id's for the IMU data are 41,42,46
+        int id = (c->id) - ((int)idClass) + equalizer ;
         canMsg msg(id, idClass, CMD_NONE, r1, r2, r3, r4, r5);
         msg.printme();
         pw = new ACES::Word<canMsg>(msg, 0, 0, 0, Protocol::credFromPacket(msg));
@@ -767,6 +754,29 @@ namespace Hubo{
                                );
 
         this->addAttribute("instantTrigger", instantTrigger);
+
+        //Rob's hacking starts here (beware of bugs)
+        this->addOperation("checkZero", &MotorDevice::checkZero,this,
+            RTT::OwnThread).doc("Check if a given motor channel has been zeroed properly")
+                          .arg("channel","Channel number to check");
+
+        this->addOperation("checkSetup", &MotorDevice::checkSetup,this,
+            RTT::OwnThread).doc("Check if internal properties have been defined for the device");
+
+        this->addOperation("checkCAN", &MotorDevice::checkCAN,this,
+            RTT::OwnThread).doc("Check if device has received a status packet");
+
+        this->addOperation("setPosLimits", &MotorDevice::setPositionLimits, this,
+            RTT::OwnThread).doc("Define joint limits for a given channel")
+                           .arg("channel", "Channel number to set")
+                           .arg("min", "lower limit of joint")
+                           .arg("max", "upper limit of joint");
+
+        this->addOperation("getChannels", &MotorDevice::getChannels,this).doc("Return the number of channels for this device");
+
+        // Make sure that default status flags are zero
+        this->clearZeroFlag();
+        this->CANStatus = false;
     }
 
     ACES::Word<canMsg>* MotorDevice::processDS(ACES::Word<float>* w){
@@ -817,55 +827,61 @@ namespace Hubo{
     }
 
     void HuboDevice::processUS_NAME_RXDF(ACES::Word<canMsg>* msg){
-        //This packet appears to be total junk - doing nothing with it for now.
+        //This packet is the interpolation time and "limits" of each joint axis.
+        //This is also useful as a ping to ensure that motors exist.
+        canMsg c = msg->getData();
+        CANStatus=true;
+        RTT::Logger::log(RTT::Logger::Warning)
+            << "Received Name/Info packet from Controller ID " << c.getID() 
+            << RTT::endlog();
+    }
+    void SensorDevice::processUS_STAT_RXDF(ACES::Word<canMsg>* msg){
+        //Do nothing for now...not sure if there is a status for sensors
     }
 
-    void HuboDevice::processUS_STAT_RXDF(ACES::Word<canMsg>* msg){
+    void MotorDevice::processUS_STAT_RXDF(ACES::Word<canMsg>* msg){
         canMsg c = msg->getData();
-        //I'm not doing anything with these because they really don't seem to
-        //contain any meaningful information. They're just being broken out so,
-        //if they end up being important, someone can easily grab them. See the
-        //hubo code base: BLDC_ReadCMD.c; Send_Status(void)
-        unsigned char JmcSTATbyte = c.getR1();
-        unsigned char m0STATbyte = c.bitStrip(c.getR2(), 0);
-        unsigned char m1STATbyte = c.bitStrip(c.getR2(), 1);
-        unsigned char m0CTLbyte = c.bitStrip(c.getR3(), 0);
-        unsigned char m1CTLbyte = c.bitStrip(c.getR3(), 1);
+        // Pull out status byte for given channels
         unsigned char m0Stat = c.bitStrip(c.getR4(), 0);
         unsigned char m1Stat = c.bitStrip(c.getR4(), 1);
                       
-        //TODO - Make these messages more elaborate
         //0xA is a mask which reveals only the origin and limit state - see
         //hubo code
         if(m0Stat & 0xA){
             RTT::Logger::log(RTT::Logger::Warning)
-                <<  "Failed to aquire origin/limit on Controller "
-                << ", Channel 0"
+                << "Controller " << name 
+                << ", Channel 0: Failed to aquire limit / zero position" 
                 << RTT::endlog();
+            //Set flag in device node
+            zeroFlag[0]=m0Stat;
+            
         }else if(m0Stat & 0x5){
             RTT::Logger::log(RTT::Logger::Warning)
-                <<  "Received a clean ACK on " << name << " "
-                << ", Channel 0"
+
+                << ", Channel 0: Successfully set limit / zero position"
                 << RTT::endlog();
+            zeroFlag[0]=m0Stat;
         }
 
         if(m1Stat & 0xA){
             RTT::Logger::log(RTT::Logger::Warning)
-                <<  "Failed to aquire origin/limit on Controller "
-                << ", Channel 1"
+                << "Controller " << name 
+                << ", Channel 1: Failed to aquire limit / zero position" 
                 << RTT::endlog();
+            zeroFlag[1]=m1Stat;
         }else if(m1Stat & 0x5){
             RTT::Logger::log(RTT::Logger::Warning)
-                <<  "Received a clean ACK on " << name << " "
-                << ", Channel 1"
+                << "Controller " << name 
+                << ", Channel 1: Successfully set limit / zero position"
                 << RTT::endlog();
+            zeroFlag[1]=m1Stat;
         }
     }
 
     int MotorDevice::getChannels(){
         return ((MotorCredentials*)credentials)->getChannels();
     }
-
+    
     bool MotorDevice::setDirection(int chan, float dir){
         return ((MotorCredentials*)credentials)->setDirection(chan, dir);
     }
@@ -903,9 +919,25 @@ namespace Hubo{
      */
     bool MotorDevice::applySetPoint(int channel, float sp, bool instantTrigger)
     {
+        MotorCredentials* c = (MotorCredentials*)credentials;
         int numChan = getChannels();
-        if(channel >= 0 && channel < numChan){
-            setPoint[channel] = sp;
+        if(c->checkChannel(channel)){
+            if (sp < c->minP[channel]){
+                //Clip lower end, should this be transparent like it is?
+
+                setPoint[channel] = c->minP[channel];
+                RTT::Logger::log(RTT::Logger::Debug)
+                    << "Minimum position limit exceeded on channel " << channel
+                    << RTT::endlog();
+                }
+            else if (sp > c->maxP[channel]){
+                //Clip upper end
+                setPoint[channel] = c->maxP[channel];
+                RTT::Logger::log(RTT::Logger::Debug)
+                    << "Maximum position limit exceeded on channel " << channel
+                    << RTT::endlog();
+                }
+            else setPoint[channel] = sp;
             trigger[channel] = true;
             
             if(instantTrigger or triggersSet()){
@@ -920,7 +952,14 @@ namespace Hubo{
         } 
         return false;
     }
-
+/*
+    float MotorDevice::limitedMotion(int chan,float sp){
+        ///Find motion towards a setpoint limited by maxV
+        if (((MotorCredentials*)credentials)->checkChannel(chan)){
+        }
+        return 0.0;
+    }
+*/
     /*! Inform us if all channels have recieved new information and are ready
      *  to fire. */
     bool MotorDevice::triggersSet(){
@@ -938,7 +977,10 @@ namespace Hubo{
             trigger[i] = false;
         }
     }
-
+    
+    //TODO: Make this "applyGains" to actually send gains out on CAN.
+    //      the setGains function should set these in device properties, so
+    //      the internals program can set them.
     bool MotorDevice::setGains(std::string type, int channel, int Kp, int Ki, int Kd){
         cmdType t = CMD_NONE;
         if(type == "Position"){
@@ -967,6 +1009,7 @@ namespace Hubo{
                     t = SET_TRQ_GAIN_B;
                     break;
                 default:
+                    //TODO: make this error less generic
                     RTT::Logger::log(RTT::Logger::Warning)
                         << "Invalid channel number "
                         << channel << " specified. Must be [0-"
@@ -994,7 +1037,9 @@ namespace Hubo{
             int ticks = c->getZeroTicks(chan);
             bool ccw = c->getZeroCCW(chan);
             canMsg c = buildZeroPacket(chan, ticks, ccw);
+            //Note that this write is independent of received Words from State
             txDownStream.write( buildWord(c, chan) );
+            zeroFlag[chan]=0; //Reset the status flag, since a successful transmission will update when complete
             return true;
         }
         return false;
@@ -1002,7 +1047,7 @@ namespace Hubo{
 
     canMsg MotorDevice::buildZeroPacket(int c, int ticks, bool ccw){
         MotorCredentials* cred = (MotorCredentials*)credentials;
-        long r1 = 0, r2 = 0, r3 = 0, r4 = 0, r5=0;
+        long r1 = 0, r2 = 0, r3 = 0, r4 = 0, r5 = 0;
 
         //Check to make sure we're not exceding the value that can be held in
         //hubolab's 19bit + sign bit representation
@@ -1028,35 +1073,46 @@ namespace Hubo{
         if( ccw ){
                 mode |= 1;
         }
-
-        if( cred->getChannels() == 2 ){  //Two channel controller
-            mode |= (1 << (4+c)); //add a flag to indicate the channel number
-            r1 = mode;
-            switch(c){
-                case 0:
-                    r2 = ticks & 0xFFFF;
-                    r4 = (ticks & 0xF0000) >> 16;
-                    break;
-                case 1:
-                    r3 = ticks & 0xFFFF;
-                    r4 = (ticks & 0xF0000) >> 12;
-                    break;
-                default:
-                    break;
-            }
-        } else if (cred->getChannels() == 3){  //Three channel controller
-            r5 = 1;     //We use r5 as a flag to indicate a three channel
-                        //controller to the lower level functions
-            mode |= (0x10); //three channel boards always use this designation
-            r2 = ((short)ticks & 0xFFFF);
-            //TODO - Correct This
-            r3 = 0x3232;
-        } else{
-            //Fail - we can't do this for other controller configurations
-            RTT::Logger::log(RTT::Logger::Warning) << "Attempted to calibrate "
-            "a board with improper channel setting. " << cred->getChannels() 
-            << "channels were specified. Only 2 or 3 are allowed for this "
-            "operation." << RTT::endlog();
+        switch (cred->getChannels()){
+            case 1: 
+            case 2:  
+                mode |= (1 << (4+c)); //add a flag to indicate the channel number
+                r1 = mode;
+                switch(c){
+                    case 0:
+                        r2 = ticks & 0xFFFF;
+                        r4 = (ticks & 0xF0000) >> 16;
+                        break;
+                    case 1:
+                        r3 = ticks & 0xFFFF;
+                        r4 = (ticks & 0xF0000) >> 12;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case 3:  
+                r5 = 1;     //We use r5 as a flag to indicate a three channel
+                //controller to the lower level functions
+                mode |= (0x10); //three channel boards always use this designation
+                r2 = ((short)ticks & 0xFFFF);
+                //TODO - Correct This
+                r3 = 0x3232;
+                break;
+            case 5:
+                //KLUDGE: Fingers do not match any other system, so this mess
+                //here duplicates what Hubo lab does in their zero button.
+                r1 = ticks & 0xFF;
+                r2 = r1 + (r1 << 8);
+                r3 = r2;
+                r5 = 1;
+                break;
+            default:
+                //Fail - we can't do this for other controller configurations
+                RTT::Logger::log(RTT::Logger::Warning) << 
+                    "Attempted to calibrate a board with improper channel" 
+                    << cred->getChannels() << 
+                    "channels were specified." << RTT::endlog();
         }
 
         return canMsg(cred->getDevID(), CMD_TXDF, GO_LIMIT_POS, r1, r2, r3, r4, r5);
@@ -1091,18 +1147,22 @@ namespace Hubo{
     }
 
     canMsg MotorDevice::buildSetPacket(){
+        //Default set command uses REF_TXDF and numchan as subtype
+        huboCanType packetType = REF_TXDF;
         int numChan = getChannels(); 
+        cmdType subcmd = (cmdType)numChan;
         unsigned long temp[5];
         switch(numChan){
             float dir, ppr;
-            case 5: //Five Channel Motor Controller - Fingers
-                for(int i=0; i < 5; i++){
+            case 1: //"Single" Channel - Waist
+            case 2: //Two Channel Motor Controllers - Limbs
+                for(int i = 0; i < 2; i++){
                     dir = ((MotorCredentials*)credentials)->getDirection(i);
                     ppr = ((MotorCredentials*)credentials)->getHarmonic(i)
                           *((MotorCredentials*)credentials)->getGearRatio(i)
                           *((MotorCredentials*)credentials)->getEncoderSize(i);
                     temp[i] =
-                        canMsg::bitStuff15byte((long)((setPoint[i]*RAD2DEG)*dir*ppr/360.));
+                       canMsg::bitStuff3byte((long)((setPoint[i]*RAD2DEG)*dir*ppr/360.));
                 }
                 break;
             case 3: //Three Channel Motor Controllers - Wrists & Neck
@@ -1114,15 +1174,21 @@ namespace Hubo{
                     temp[i] = (setPoint[i]*RAD2DEG)*dir*ppr/360.;
                 }
                 break;
-            case 2: //Two Channel Motor Controllers - Limbs
-                for(int i = 0; i < 2; i++){
-                    dir = ((MotorCredentials*)credentials)->getDirection(i);
-                    ppr = ((MotorCredentials*)credentials)->getHarmonic(i)
-                          *((MotorCredentials*)credentials)->getGearRatio(i)
-                          *((MotorCredentials*)credentials)->getEncoderSize(i);
-                    temp[i] =
-                       canMsg::bitStuff3byte((long)((setPoint[i]*RAD2DEG)*dir*ppr/360.));
+            case 5: //Five Channel Motor Controller - Fingers
+                for(int i = 0; i < 5; i++){
+                    //These motor controllers totally defy convention
+                    temp[i] = canMsg::bitStuff1byte((long)(setPoint[i]));
                 }
+                //KLUDGE: This mess converts the setpoints to a stuffed set of
+                //bytes that the interpreter for PWM_CMD can digest in a
+                //standard way.
+                temp[1] = (temp[0] + (temp[1] << 8));
+                temp[2] = (temp[2] + (temp[3] << 8) + (temp[3] << 16));
+                temp[4] = 1;
+                temp[0] = 1;
+                //Note that Hands are direct voltage control via PWM_CMD
+                packetType = CMD_TXDF;
+                subcmd = PWM_CMD;
                 break;
             default:
                 //TODO - Failure case
@@ -1130,7 +1196,7 @@ namespace Hubo{
         }
 
         canMsg cm( credentials->getDevID(),
-                REF_TXDF, (cmdType)numChan, temp[0], temp[1], temp[2], temp[3],
+                packetType, subcmd , temp[0], temp[1], temp[2], temp[3],
                 temp[4]);
         return cm;
     }
@@ -1204,11 +1270,32 @@ namespace Hubo{
     canMsg MotorDevice::buildRunCmdPacket(){
         return canMsg( credentials->getDevID(), CMD_TXDF, RUN_CMD);
     }
+    
+    void MotorDevice::clearZeroFlag(){
+        // Clear the zero flags (ie reset each flag to 0 = not attempted
+        for (int k = 0; k<ctrlSize ; k++){
+            zeroFlag[k]=0;
+        }
+    }
+
+    int MotorDevice::checkZero(int chan){
+        //Check if zeroing is complete.  There are 3 states:
+        // 0 = not attempted
+        // 5 = SUCCESS
+        // 10 = FAIL
+        if (chan>=0 && chan <ctrlSize)
+        {
+            return zeroFlag[chan];
+        }
+        else return 0; //Invalid channel #
+    }
 
     SensorDevice::SensorDevice(std::string cfg, std::string args)
      :HuboDevice(cfg,args)
     {
         credentials = (ACES::Credentials*)SensorCredentials::makeCredentials(args);
+        this->addOperation("programZero", &SensorDevice::programZero, this,
+            RTT::OwnThread).doc("Zero all sensor channels");
     }
 
     ACES::Word<float>* SensorDevice::processUS(ACES::Word<canMsg>* msg){
@@ -1235,7 +1322,8 @@ namespace Hubo{
                     processUS_NAME_RXDF(msg);
                     break;
                 case STAT_RXDF:
-                    processUS_STAT_RXDF(msg);
+                    //TODO: Make this a virtual function in HuboDevice
+                    //processUS_STAT_RXDF(msg);
                     break;
                 default:
                     break;
@@ -1248,10 +1336,11 @@ namespace Hubo{
         // For devices which are FT hubolab sensors
         // Channel 0 = Mx, Channel 1 = My, Channel 2 = Fz
         canMsg c = msg->getData();
+        //ROB: What does this new pointer do? Why not just directly use credentials?
         SensorCredentials* cred = (SensorCredentials*)credentials;
-        float mx = c.getR1() * cred->getScale(0);
-        float my = c.getR2() * cred->getScale(1);
-        float fz = c.getR3() * cred->getScale(2);
+        float mx = (signed short)c.getR1() * cred->getScale(0);
+        float my = (signed short)c.getR2() * cred->getScale(1);
+        float fz = (signed short)c.getR3() * cred->getScale(2);
         
         ACES::Word<float> *w = new ACES::Word<float>(mx, 0,
                                   credentials->getDevID(), ACES::REFRESH);
@@ -1297,5 +1386,74 @@ namespace Hubo{
         }
         //TODO: Clean up the input Word here
         return msg;
+    }
+
+    /**
+     * Build a command packet to set all channels' zero point to current value.
+     * @todo break out the mode byte into channels, should we want to rezero
+     * individually.
+     * 
+     */
+    canMsg SensorDevice::buildZeroPacket(char mode){
+        long r2 = 0, r3 = 0, r4 = 0, r5=0;
+        return canMsg( credentials->getDevID()-1, CMD_TXDF, NULL_CMD,(long) mode,r2,r3,r4,r5);
+    }
+
+    /**
+     * Zero the sensors (if applicable).
+     * This should be the same as the FT Null command in the Hubo sofware.
+     */
+    bool SensorDevice::programZero(){
+        //SensorCredentials* c = (SensorCredentials*)credentials;
+        canMsg msg = buildZeroPacket(0);
+        txDownStream.write( buildWord(msg, 0) );
+        return true;
+    }
+
+    /**
+     * @brief Check if device has been initialized in the script.
+     * The device needs internal settings such as drive ratio, encoder size,
+     * etc. This function verifies that the scripting has set up the key
+     * properties. This process isn't intense, but might add excess
+     * processing time if called on every iteration (and really we only
+     * need to verify this in the beginning).
+     *
+     */
+    bool MotorDevice::checkSetup()
+    {
+        MotorCredentials* cred = (MotorCredentials*)credentials;
+        if(cred->getHarmonic(0)<=0 ||
+                cred->getGearRatio(0)<=0 ||
+                cred->getZeroTicks(0)==0)
+        {
+            return false;
+        }
+        return true;
+    }
+    
+    /**
+     * Return CAN status based on nameinfo packet.
+     * If the nameinfo packet is correctly returned, the CANStatus flag 
+     * will be set, showing that CAN is connected. This might be useful
+     * for safety checks down the road
+     */
+    bool MotorDevice::checkCAN()
+    {
+        return CANStatus;
+    }
+
+    /**
+     * Assign position limits for a given channel.
+     * These limits represent that maximum safe range of a given joint. If the
+     * limits are unknown for a given joint, then simply set them to an
+     * arbitrarily large magnitude. 
+     *
+     * @note The limits are hard, and currently
+     * do NOT have gentle boundaries. The position output will be clipped even
+     * if it means sudden deceleration.
+     * 
+     */
+    bool MotorDevice::setPositionLimits(int chan, float minP, float maxP) {
+        return ((MotorCredentials*)credentials)->setPositionLimits(chan, minP, maxP);
     }
 }
