@@ -28,7 +28,7 @@
     Systems (IROS), 2011 IEEE/RSJ International Conference on. 
 */
 
-#ifndef ACES_HUBOCANi_HPP
+#ifndef ACES_HUBOCAN_HPP
 #define ACES_HUBOCAN_HPP
 
 #include <iostream>
@@ -95,6 +95,7 @@ namespace Hubo{
             unsigned long getR5();
 
             void printme();
+            static unsigned long bitStuff1byte(long bs);
             static unsigned long bitStuff15byte(long bs);
             static unsigned long bitStuff3byte(long bs);
             static unsigned long bitStuffCalibratePacket(long bs);

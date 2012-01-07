@@ -45,6 +45,8 @@
 #include "../word.hpp"
 #include "matlab.hpp"
 
+#include <boost/circular_buffer.hpp>
+
 namespace ACES {
     class ProtoState : public ACESTask
     {
@@ -183,15 +185,15 @@ namespace ACES {
             void printme();
             void printHistory();
             virtual void go(T sp);
-            void assign(Word<T>* w);
-            T getVal();
+            virtual void assign(Word<T>* w);
+            virtual T getVal();
             float getInt();
             float getDiff();
 
             bool updateInt(Sample<T> cur, Sample<T> last);
             bool updateDiff(Sample<T> cur, Sample<T> last);
 
-            Word<T>* processDS( std::map<std::string, void*>* p );
+            virtual Word<T>* processDS( std::map<std::string, void*>* p );
 
         protected:
             T value;

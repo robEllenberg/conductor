@@ -115,11 +115,18 @@ namespace ACES{
         return RTT::os::TimeService::Instance()->getSeconds(t);
     }
 
+    
+    /**
+     * Basic State.
+     * @param cfg String of configuration information, typically "name priority freq"
+     * @param nID Node number of state (when it eventually connects to a device)
+     */
     template <class T>
     State<T>::State(std::string cfg, int nID, bool sampling, unsigned int
                     portnum) :
       ProtoState(cfg, nID, sampling),
       value(0),
+      kInt(1),
       hist(10),
       port(portnum),
       matio(this, port),
@@ -269,7 +276,7 @@ namespace ACES{
         if(cur.isValid() and last.isValid()){
             double newArea = 1./2.*(double)( cur.getVal()+last.getVal()) *
             (double)( last.getSec() - cur.getSec() );
-            integral += newArea;
+            integral = newArea + kInt*integral;
             return true;
         }
         return false;
@@ -313,4 +320,5 @@ namespace ACES{
         s << this->value;
         return s.str();
     }
+
 }
