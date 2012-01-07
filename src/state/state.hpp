@@ -187,6 +187,7 @@ namespace ACES {
             virtual void go(T sp);
             virtual void assign(Word<T>* w);
             virtual T getVal();
+            int kInt;
             float getInt();
             float getDiff();
 
