@@ -87,13 +87,12 @@ namespace ACES {
         port(io_service, (const char*)args.c_str())
     {}
 
-    bool charHardware::txBus(ACES::Message<unsigned char>* m){
-        if(m){
-            ACES::Word<unsigned char>* w = NULL;
+    bool charHardware::txBus(ACES::Message<unsigned char>& m){
+            ACES::Word<unsigned char> w;
             std::vector<unsigned char> buf;
-            while(m->size()){
-                w = m->pop();
-                buf.push_back(w->getData());
+            while(m.size()){
+                w = m.pop();
+                buf.push_back(w.getData());
             }
             for(std::vector<unsigned char>::iterator it = buf.begin();
                 it != buf.end(); it++)
@@ -102,8 +101,6 @@ namespace ACES {
                 RTT::Logger::log() << (int) *it  << RTT::endlog();
             }
             return true;
-        }
-        return false;
     }
 
     pStreamHardware::pStreamHardware(std::string cfg, std::string args)
@@ -114,24 +111,21 @@ namespace ACES {
         //::dup(ioFD)
     {}
 
-    bool pStreamHardware::txBus(ACES::Message<unsigned char>* m){
-        if(m){
-            ACES::Word<unsigned char>* w = NULL;
-            std::vector<unsigned char> buf;
-            while(m->size()){
-                w = m->pop();
-                buf.push_back(w->getData());
-            }
-            for(std::vector<unsigned char>::iterator it = buf.begin();
-                it != buf.end(); it++)
-            {
-                //port.write_some(boost::asio::buffer((void*)(&(*it)), 1));
-                char c = *it;
-                write(ioFD, &c, 1);
-                RTT::Logger::log() << (int) *it  << RTT::endlog();
-            }
-            return true;
+    bool pStreamHardware::txBus(ACES::Message<unsigned char>& m){
+        ACES::Word<unsigned char> w;
+        std::vector<unsigned char> buf;
+        while(m.size()){
+            w = m.pop();
+            buf.push_back(w.getData());
         }
-        return false;
+        for(std::vector<unsigned char>::iterator it = buf.begin();
+                it != buf.end(); it++)
+        {
+            //port.write_some(boost::asio::buffer((void*)(&(*it)), 1));
+            char c = *it;
+            write(ioFD, &c, 1);
+            RTT::Logger::log() << (int) *it  << RTT::endlog();
+        }
+        return true;
     }
 }

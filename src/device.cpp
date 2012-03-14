@@ -70,7 +70,7 @@ namespace ACES{
     }
 /*
     template <class S, class PD>
-    void Device<S,PD>::rxDownStream(Word<S>* g){
+    void Device<S,PD>::rxDownStream(Word<S> g){
         bool i = g->setCred(credentials);
         assert(i);
         dsQueue.enqueue(g);

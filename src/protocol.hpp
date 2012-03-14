@@ -43,16 +43,11 @@
 #include <rtt/Activity.hpp>
 
 #include "message.hpp"
-//#include "state/state.hpp"
 #include "taskcfg.hpp"
-//#include "device.hpp"
 #include "word.hpp"
 
 namespace ACES {
     class Credentials;
-
-    //template <class T>
-    //class State;
 
     template <class H>
     class Hardware;
@@ -68,36 +63,26 @@ namespace ACES {
 /*!
  * The Protocol virtual class 
  */
-    template <class HW, class PD>    
+    template <class PD, class HW>    
     class Protocol : public ProtoProtocol
     {
         public:
             Protocol(std::string cfg, std::string args);
             void updateHook();
 
-            //virtual void rxDownStream(Word<PD>*);
-            //virtual void rxUpStream(Word<HW>*);
-
-            virtual Message<HW>* processDS(Word<PD>*);
-            virtual Word<PD>* processUS(Word<HW>*);
+            virtual bool processDS(Word<PD>& dsIn, Message<HW>& dsOut);
+            virtual bool processUS(Word<HW>& usIn, Word<PD>& usOut);
             virtual void txDSPending();
 
         protected:
-            //RTT::Event<void(Message<HW>*)> txDownStream;
-            //RTT::Event< void(Word<PD>*) > txUpStream;
-            //T, read, write
-            RTT::InputPort< Word<PD>* > rxDownStream;
-            RTT::InputPort< Word<HW>* > rxUpStream;
-            RTT::OutputPort< Message<HW>* > txDownStream;
-            RTT::OutputPort< Word<PD>* > txUpStream;
-            /*
-            RTT::Queue< Word<HW>*, RTT::NonBlockingPolicy,
-                       RTT::BlockingPolicy> usQueue;
-            RTT::Queue<Word<PD>*, RTT::NonBlockingPolicy,
-                       RTT::BlockingPolicy> dsQueue;
-            */
+            RTT::InputPort< Word<PD> > rxDownStream;
+            RTT::InputPort< Word<HW> > rxUpStream;
+            RTT::OutputPort< Message<HW> > txDownStream;
+            RTT::OutputPort< Word<PD> > txUpStream;
+
     };
 }
 
 #include "protocol.cc"
+
 #endif

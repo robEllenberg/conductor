@@ -51,24 +51,24 @@ namespace ACES{
 
     template <class S, class PD>
     void Device<S,PD>::updateHook(){
-        Word<S>* dsIn = NULL;
-        Word<PD>* dsOut = NULL;
+        Word<S> dsIn;
+        Word<PD> dsOut;
         if(not DSlockout){
             while( rxDownStream.read(dsIn) == RTT::NewData ){
-                if( (dsOut = processDS(dsIn)) ){
+                if( (processDS(dsIn,dsOut)) ){
                     RTT::Logger::log(RTT::Logger::Debug) << "(dev: " 
-                                       << name << ") got DS"
+                                       << name << ") got DS" << ", dataIn: " << dsIn.getData()
                                        << RTT::endlog();
                     txDownStream.write(dsOut);
                 }
             }
         }
         
-        Word<PD>* usIn = NULL;
-        Word<S>* usOut = NULL;
+        Word<PD> usIn;
+        Word<S> usOut;
         if(not USlockout){
             while( rxUpStream.read(usIn) == RTT::NewData ){
-                if( (usOut = processUS(usIn)) ){
+                if( (processUS(usIn,usOut)) ){
                     RTT::Logger::log(RTT::Logger::Debug) << "(dev: "
                                        << name << ") got US"
                                        << RTT::endlog();
@@ -83,28 +83,27 @@ namespace ACES{
             }
         }
     }
-
+    /*
     template <class S, class PD>
-    Word<S>* Device<S,PD>::processUS(Word<PD>* usIn){
-        Word<S>* usOut = NULL;
-        if(*(usIn->getCred()) == *credentials){
+    bool Device<S,PD>::processUS(Word<PD>& usIn, Word<S>& usOut){
+        if(*(usIn.getCred()) == *credentials){
             //Only works on equiv types
             //TODO - VERY VERY BAD
-            usOut = (Word<S>*)usIn;
-            return usOut; 
+            usOut.setData((S)(usIn.getData()));
+            return true; 
         }
-        return NULL;
+        return false;
     }
 
     template <class S, class PD>
-    Word<PD>* Device<S,PD>::processDS(Word<S>* dsIn){
-        Word<PD>* dsOut = NULL;
-        dsIn->setCred(credentials);
+    bool Device<S,PD>::processDS(Word<S>& dsIn, Word<PD>& dsOut){
+        dsOut.setCred(credentials);
         //Only works on equiv types
         //TODO - VERY VERY BAD
-        dsOut = (Word<PD>*)dsIn;
-        return dsOut; 
+        dsOut.setData((PD)(dsIn.getData()));
+        return true; 
     }
+    */
 
     template <class S, class P>
     void Device<S,P>::printCred(){

@@ -53,6 +53,8 @@ namespace TestSuite{
     class Device : public ACES::Device<float, float> {
         public:
             Device(std::string cfg, std::string args);
+            bool processDS(ACES::Word<float>& dsIn, ACES::Word<float>& dsOut );
+            bool processUS(ACES::Word<float>& usIn, ACES::Word<float>& usOut );
     };
 
     class Protocol : public ACES::Protocol<float, float>{

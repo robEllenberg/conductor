@@ -31,9 +31,6 @@
 #include "hubo.hpp"
 
 namespace Hubo{
-    canmsg_t rxBuffer[canBuffSize]; 
-
-
     MotorCredentials::MotorCredentials(int board, int chan)
      : ACES::Credentials(board)
     {
@@ -313,8 +310,9 @@ namespace Hubo{
         return false;
     }
 
+    //Big gamble here this this conversion actually works...
     CANHardware::CANHardware(std::string cfg, std::string args)
-      : ACES::Hardware<canmsg_t*>(cfg, args)
+      : ACES::Hardware<canmsg_t>(cfg, args)
     {
         //args contains the CAN device we're interested in e.g. "/dev/can0"
         //the baud rate to operate at 
@@ -346,7 +344,7 @@ namespace Hubo{
 
     bool CANHardware::startHook(){
 
-        #ifdef HUBO_TESTMODE
+        #if TESTMODE == 1
             beginning = RTT::os::TimeService::Instance()->getTicks();
             std::string ofd = fd + ".out";
             channel = open(ofd.c_str(), O_WRONLY | O_CREAT | O_TRUNC,
@@ -384,7 +382,7 @@ namespace Hubo{
     
     void CANHardware::stopHook(){
         close(channel);
-        #ifdef HUBO_TESTMODE
+        #if TESTMODE == 1
             ichannel.close();
         #endif
     }
@@ -392,50 +390,54 @@ namespace Hubo{
     bool CANHardware::genPacket(int ID, int len, 
                                 std::string packetContent)
     {
-        ACES::Message<canmsg_t*> *m = new ACES::Message<canmsg_t*>();
+        ACES::Message<canmsg_t> m;
         unsigned long long int packet = 0ULL;
         std::istringstream pacContStream(packetContent);
         pacContStream >> std::setbase(16) >> packet;
 
-        canmsg_t* msg = new canmsg_t;
-        msg->id = ID;
-        msg->cob = 0;
-        msg->flags = 0;
-        msg->length = len;
+        canmsg_t msg;
+        msg.id = ID;
+        msg.cob = 0;
+        msg.flags = 0;
+        msg.length = len;
         switch(len){
             case 8:
-                msg->data[7] = ((packet & 0x00000000000000FFULL) >> (8*0));
+                msg.data[7] = ((packet & 0x00000000000000FFULL) >> (8*0));
             case 7:
-                msg->data[6] = ((packet & 0x000000000000FF00ULL) >> (8*1));
+                msg.data[6] = ((packet & 0x000000000000FF00ULL) >> (8*1));
             case 6:
-                msg->data[5] = ((packet & 0x0000000000FF0000ULL) >> (8*2));
+                msg.data[5] = ((packet & 0x0000000000FF0000ULL) >> (8*2));
             case 5:
-                msg->data[4] = ((packet & 0x00000000FF000000ULL) >> (8*3));
+                msg.data[4] = ((packet & 0x00000000FF000000ULL) >> (8*3));
             case 4:
-                msg->data[3] = ((packet & 0x000000FF00000000ULL) >> (8*4));
+                msg.data[3] = ((packet & 0x000000FF00000000ULL) >> (8*4));
             case 3:
-                msg->data[2] = ((packet & 0x0000FF0000000000ULL) >> (8*5));
+                msg.data[2] = ((packet & 0x0000FF0000000000ULL) >> (8*5));
             case 2:
-                msg->data[1] = ((packet & 0x00FF000000000000ULL) >> (8*6));
+                msg.data[1] = ((packet & 0x00FF000000000000ULL) >> (8*6));
             case 1:
-                msg->data[0] = ((packet & 0xFF00000000000000ULL) >> (8*7));
+                msg.data[0] = ((packet & 0xFF00000000000000ULL) >> (8*7));
             case 0:
                 break;
             default:
                 assert(0);
         }
-        m->push( new ACES::Word<canmsg_t*>(msg) );
+        ACES::Word<canmsg_t> msgWord(msg);
+        m.push( msgWord );
 
         txDSLoop.write(m);
         return true;
     }
 
-    bool CANHardware::txBus(ACES::Message<canmsg_t*>* m){
-        while( m->size() ){
-            ACES::Word<canmsg_t*>* w = m->pop();
-            canmsg_t* msg = w->getData();
+    bool CANHardware::txBus(ACES::Message<canmsg_t> &m){
+        ACES::Word<canmsg_t> w;
+        while( m.size() ){
+            //TODO constructors
+            w= m.pop();
+            canmsg_t msg;
+            msg = w.getData();
             int r = 0;
-            #ifdef HUBO_TESTMODE
+            #if TESTMODE == 1
                 //Grab the current time and copy it to a string
                 RTT::Seconds sampleTime =
                     RTT::os::TimeService::Instance()->secondsSince(beginning);
@@ -453,7 +455,7 @@ namespace Hubo{
                 r = 1;  //Bypass the error checks later
                 //int r = write(channel, &(msg->data), msg->length);
             #else //Normal operation
-                r = write(channel, msg, 1);
+                r = write(channel, &msg, 1);
             #endif 
             if(r == -1){
                 RTT::Logger::log() << RTT::Logger::Info
@@ -464,10 +466,7 @@ namespace Hubo{
                 << "CAN Transmission Timeout"
                 << RTT::endlog();
             }
-            //delete msg;
-            //TODO - Delete the word
         }
-        //delete m;
         return true;
     }
 
@@ -477,7 +476,7 @@ namespace Hubo{
         unsigned long msgID = 0;
         std::string junk;
 
-        #ifdef HUBO_TESTMODE //Offline operation
+        #if TESTMODE == 1 //Offline operation
 
             char linebuf[100];
             while( (not ichannel.eof()) and (rxSize < canBuffSize)){
@@ -505,18 +504,18 @@ namespace Hubo{
             if(i == 0){
                 packet << "Reception of size " << rxSize << ": ";
             }
-            canmsg_t* msg = new canmsg_t;
-            msg->flags = rxBuffer[i].flags;
-            msg->cob = rxBuffer[i].cob;
-            msg->id = rxBuffer[i].id;
-            msg->timestamp = rxBuffer[i].timestamp;
-            msg->length = rxBuffer[i].length;
-            for(int j = 0; j < msg->length; j++){
-                msg->data[j] = rxBuffer[i].data[j];
-                packet << "0x" << std::setbase(16) << (int)(msg->data[j]) << ", ";
+            canmsg_t msg;
+            msg.flags = rxBuffer[i].flags;
+            msg.cob = rxBuffer[i].cob;
+            msg.id = rxBuffer[i].id;
+            msg.timestamp = rxBuffer[i].timestamp;
+            msg.length = rxBuffer[i].length;
+            for(int j = 0; j < msg.length; j++){
+                msg.data[j] = rxBuffer[i].data[j];
+                packet << "0x" << std::setbase(16) << (int)(msg.data[j]) << ", ";
             }
             packet << std::endl;
-            ACES::Word<canmsg_t*>* w = new ACES::Word<canmsg_t*>(msg);
+            ACES::Word<canmsg_t> w(msg);
             txUpStream.write(w);
 
             if(i == rxSize-1){
@@ -526,50 +525,30 @@ namespace Hubo{
         }
     }
 
-/*
-    int CANHardware::readFDline(int fd, char* buffer, int maxlen){
-        int ret = 0;
-        for(int i = 0; i < maxlen-1; i++){
-            ret = read(fd, buffer+i, 1);
-            if(ret <= 0){
-                return ret;
-            }
-            if(buffer[i] == '\n'){
-                buffer[i+1] = 0;
-                return i;
-            }
-        }
-        return -1;
-    }
-*/
-
     Protocol::Protocol(std::string cfg, std::string args)
-      : ACES::Protocol<canmsg_t*, canMsg>(cfg, args)
+      : ACES::Protocol<canMsg, canmsg_t>(cfg, args)
     {}
 
     ACES::Credentials* Protocol::credFromPacket(canMsg& c){
         return new ACES::Credentials(c.getID());
     }
 
-    ACES::Message<canmsg_t*>* Protocol::processDS(ACES::Word<canMsg>* h){
-        ACES::Message<canmsg_t*> *m = NULL;
-        if(h){
-            canmsg_t* msg = h->getData().toLineType();
-            m = new ACES::Message<canmsg_t*>;
-            m->push( new ACES::Word<canmsg_t*>(msg) );
-        }
-        return m;
+    bool Protocol::processDS(ACES::Word<canMsg>& h, ACES::Message<canmsg_t>& m){
+        //TODO: validity check? the old existence check is redundant now    
+        canmsg_t msg = (h.getData()).toLineType();
+        ACES::Word<canmsg_t> msgWord(msg);
+        m.push(msgWord );
+        return true;
     }
 
-    ACES::Word<canMsg>* Protocol::processUS(ACES::Word<canmsg_t*>* usIn){
-        ACES::Word<canMsg>* pw = NULL;
-        canmsg_t* c = usIn->getData();
+    bool Protocol::processUS(ACES::Word<canmsg_t>& usIn, ACES::Word<canMsg>& usOut){
+        canmsg_t c = usIn.getData();
         unsigned long r1 = 0, r2 = 0, r3 = 0, r4 = 0, r5 = 0;
         huboCanType idClass = CAN_NONE;
 
-        if(c->id < 0x40){
+        if(c.id < 0x40){
             //anything below id 0x40 is outgoing, so we can ignore it
-            return NULL;
+            return false;
         }
 
         //The equalizer is needed because the offsets used to differentiate
@@ -583,61 +562,62 @@ namespace Hubo{
         //the board number is always returned on the canMsg.
         int equalizer = 0;
 
-        if( offsetRange(NAME_RXDF, c->id) ){
+        if( offsetRange(NAME_RXDF, c.id) ){
             idClass = NAME_RXDF;
-            r1 = c->data[0]; // Time?
-            r2 = c->data[1]; // SearchLimit0 - Corrupted
-            r3 = c->data[2]; // SearchLimit1 - Corrupted
+            r1 = c.data[0]; // Time?
+            r2 = c.data[1]; // SearchLimit0 - Corrupted
+            r3 = c.data[2]; // SearchLimit1 - Corrupted
         }
-        else if( offsetRange(STAT_RXDF, c->id) ){
+        else if( offsetRange(STAT_RXDF, c.id) ){
             idClass = STAT_RXDF;
-            r1 = c->data[0];                            //JmcSTATbyte
-            r2 = assemble2Byte(c->data[1], c->data[2]);//(m0STATbyte, m1STATbyte)
-            r3 = assemble2Byte(c->data[3], c->data[4]);//(m0CTLbyte, m1CTLbyte)
-            r4 = assemble2Byte(c->data[5], c->data[6]);//[CtrlStat1, CtrlStat0]
+            r1 = c.data[0];                            //JmcSTATbyte
+            r2 = assemble2Byte(c.data[1], c.data[2]);//(m0STATbyte, m1STATbyte)
+            r3 = assemble2Byte(c.data[3], c.data[4]);//(m0CTLbyte, m1CTLbyte)
+            r4 = assemble2Byte(c.data[5], c.data[6]);//[CtrlStat1, CtrlStat0]
         }
-        else if( offsetRange(SENSOR_FT_RXDF, c->id)){
+        else if( offsetRange(SENSOR_FT_RXDF, c.id)){
             idClass = SENSOR_FT_RXDF;
             equalizer = 0x30;
-            r1 = assemble2Byte(c->data[0], c->data[1]); //Mx
-            r2 = assemble2Byte(c->data[2], c->data[3]); //My
-            r3 = assemble2Byte(c->data[4], c->data[5]); //Fz
+            r1 = assemble2Byte(c.data[0], c.data[1]); //Mx
+            r2 = assemble2Byte(c.data[2], c.data[3]); //My
+            r3 = assemble2Byte(c.data[4], c.data[5]); //Fz
         }
-        else if( offsetRange(SENSOR_AD_RXDF, c->id)){
+        else if( offsetRange(SENSOR_AD_RXDF, c.id)){
             idClass = SENSOR_AD_RXDF;
             equalizer = 0x40;
-            r1 = assemble2Byte(c->data[0], c->data[1]); //Acc1
-            r2 = assemble2Byte(c->data[2], c->data[3]); //Acc2
-            r3 = assemble2Byte(c->data[4], c->data[5]); //Gyro1
-            r4 = assemble2Byte(c->data[6], c->data[7]); //Gyro2
+            r1 = assemble2Byte(c.data[0], c.data[1]); //Acc1
+            r2 = assemble2Byte(c.data[2], c.data[3]); //Acc2
+            r3 = assemble2Byte(c.data[4], c.data[5]); //Gyro1
+            r4 = assemble2Byte(c.data[6], c.data[7]); //Gyro2
         }
-        else if( offsetRange(DAOFFSET_RXDF, c->id)){
+        else if( offsetRange(DAOFFSET_RXDF, c.id)){
             idClass = DAOFFSET_RXDF;
-            r1 = assemble2Byte(c->data[0], c->data[1]); //Mx
-            r2 = assemble2Byte(c->data[2], c->data[3]); //My
-            r3 = assemble2Byte(c->data[4], c->data[5]); //Fz
+            r1 = assemble2Byte(c.data[0], c.data[1]); //Mx
+            r2 = assemble2Byte(c.data[2], c.data[3]); //My
+            r3 = assemble2Byte(c.data[4], c.data[5]); //Fz
         }
-        else if( offsetRange(ADOFFSET_RXDF, c->id)){
+        else if( offsetRange(ADOFFSET_RXDF, c.id)){
             idClass = ADOFFSET_RXDF;
-            r1 = assemble2Byte(c->data[0], c->data[1]); //Mx
-            r2 = assemble2Byte(c->data[2], c->data[3]); //My
-            r3 = assemble2Byte(c->data[4], c->data[5]); //Fz
+            r1 = assemble2Byte(c.data[0], c.data[1]); //Mx
+            r2 = assemble2Byte(c.data[2], c.data[3]); //My
+            r3 = assemble2Byte(c.data[4], c.data[5]); //Fz
         }
-        else if( offsetRange(OFFSET_RXDF, c->id)){
+        else if( offsetRange(OFFSET_RXDF, c.id)){
             idClass = OFFSET_RXDF;
-            r1 = assemble2Byte(c->data[0], c->data[1]); //AD
-            r2 = assemble2Byte(c->data[2], c->data[3]); //DA
+            r1 = assemble2Byte(c.data[0], c.data[1]); //AD
+            r2 = assemble2Byte(c.data[2], c.data[3]); //DA
         } else {
             //printf(failed to match a packet)
-            return pw;
+            return false;
         }
         //IMPORTANT: the device offsets are now renumbered slightly to make them consistent.
         // hte new ids for the force torques are 31,32,36, while the new id's for the IMU data are 41,42,46
-        int id = (c->id) - ((int)idClass) + equalizer ;
+        int id = (c.id) - ((int)idClass) + equalizer ;
         canMsg msg(id, idClass, CMD_NONE, r1, r2, r3, r4, r5);
-        msg.printme();
-        pw = new ACES::Word<canMsg>(msg, 0, 0, 0, Protocol::credFromPacket(msg));
-        return pw;
+        //msg.printme();
+        ACES::Word<canMsg> pw(msg, 0, 0, 0, Protocol::credFromPacket(msg));
+        usOut=pw;
+        return true;
     }
 
     /*! \param t Indicator of the range we wish to test against
@@ -672,6 +652,7 @@ namespace Hubo{
                     return true;
                 } break;
             default:
+
                 assert(false);
         }
         return false;
@@ -693,10 +674,10 @@ namespace Hubo{
      :ACES::Device<float, canMsg>(cfg)
     {}
 
-    ACES::Word<canMsg>* HuboDevice::buildWord(canMsg c, int channel){
+    ACES::Word<canMsg> HuboDevice::buildWord(canMsg c, int channel){
         MotorCredentials* cred = (MotorCredentials*)credentials;
-        return new ACES::Word<canMsg>(c, channel, cred->getDevID(),
-                                      ACES::SET, credentials);
+        ACES::Word<canMsg> outWord(c, channel, cred->getDevID(), ACES::SET, credentials);
+        return outWord; 
     }
 
     MotorDevice::MotorDevice(std::string cfg, std::string args)
@@ -730,7 +711,7 @@ namespace Hubo{
                            .arg("Kd", "Derivative Gain");
 
         this->addOperation("programZero", &MotorDevice::programZero, this,
-            RTT::OwnThread).doc("Set the harmonic drive ratio.")
+            RTT::OwnThread).doc("Send the homing command to Motor Controller")
                            .arg("channel", "Channel number to set");
 
         this->addOperation("setZero", &MotorDevice::setZero, this,
@@ -779,22 +760,22 @@ namespace Hubo{
         this->CANStatus = false;
     }
 
-    ACES::Word<canMsg>* MotorDevice::processDS(ACES::Word<float>* w){
-        ACES::Word<canMsg>* msg = NULL;
-        if(w and (w->getMode() == ACES::SET) ){
-            if( applySetPoint(w->getNodeID(), w->getData(), instantTrigger) ){
+    bool MotorDevice::processDS(ACES::Word<float>& w, ACES::Word<canMsg>& dsOut){
+        if(w.getMode() == ACES::SET){
+            if( applySetPoint(w.getNodeID(), w.getData(), instantTrigger) ){
                 canMsg c = buildSetPacket();
-                msg = buildWord(c, 0);
+                dsOut = buildWord(c, 0);
             }
+            return true;
         }
+        return false;
         //RTT::Logger::log(RTT::Logger::Warning) <<  "Processing: " << msg
         //<< RTT::endlog();
-        return msg;
     }
 
-    ACES::Word<float>* MotorDevice::processUS(ACES::Word<canMsg>* msg){
-        if(*(msg->getCred()) == *credentials){
-            canMsg c = msg->getData();
+    bool MotorDevice::processUS(ACES::Word<canMsg>& msg, ACES::Word<float>& usOut){
+        if(*(msg.getCred()) == *credentials){
+            canMsg c = msg.getData();
             //The behaviors are too complex to handle all here, so we break
             //them out based on the type of packet being received and use a
             //specific processing function for each.
@@ -805,12 +786,10 @@ namespace Hubo{
                 case DAOFFSET_RXDF:
                 case ADOFFSET_RXDF:
                 case OFFSET_RXDF:
-                    //TODO - WTF are these packets for?
                     break;
                 case ENC_RXDF:
                 case CUR_RXDF:
                 case PM_RXDF:
-                    //TODO - HuboLab never uses them, I don't see why we would
                     break;
                 case NAME_RXDF:
                     processUS_NAME_RXDF(msg);
@@ -821,26 +800,25 @@ namespace Hubo{
                 default:
                     break;
             }
-            //TODO: delete msg->credentials
         }
-        return NULL;
+        return false;
     }
 
-    void HuboDevice::processUS_NAME_RXDF(ACES::Word<canMsg>* msg){
+    void HuboDevice::processUS_NAME_RXDF(ACES::Word<canMsg>& msg){
         //This packet is the interpolation time and "limits" of each joint axis.
         //This is also useful as a ping to ensure that motors exist.
-        canMsg c = msg->getData();
+        canMsg c = msg.getData();
         CANStatus=true;
         RTT::Logger::log(RTT::Logger::Warning)
             << "Received Name/Info packet from Controller ID " << c.getID() 
             << RTT::endlog();
     }
-    void SensorDevice::processUS_STAT_RXDF(ACES::Word<canMsg>* msg){
+    void SensorDevice::processUS_STAT_RXDF(ACES::Word<canMsg>& msg){
         //Do nothing for now...not sure if there is a status for sensors
     }
 
-    void MotorDevice::processUS_STAT_RXDF(ACES::Word<canMsg>* msg){
-        canMsg c = msg->getData();
+    void MotorDevice::processUS_STAT_RXDF(ACES::Word<canMsg>& msg){
+        canMsg c = msg.getData();
         // Pull out status byte for given channels
         unsigned char m0Stat = c.bitStrip(c.getR4(), 0);
         unsigned char m1Stat = c.bitStrip(c.getR4(), 1);
@@ -857,7 +835,7 @@ namespace Hubo{
             
         }else if(m0Stat & 0x5){
             RTT::Logger::log(RTT::Logger::Warning)
-
+                << "Controller " << name 
                 << ", Channel 0: Successfully set limit / zero position"
                 << RTT::endlog();
             zeroFlag[0]=m0Stat;
@@ -878,6 +856,7 @@ namespace Hubo{
         }
     }
 
+    //TODO Set all these get functions to be const returns (so that const references are preserved
     int MotorDevice::getChannels(){
         return ((MotorCredentials*)credentials)->getChannels();
     }
@@ -905,8 +884,7 @@ namespace Hubo{
     bool MotorDevice::setSetPoint(int channel, float sp, bool instantTrigger){
         if(applySetPoint(channel, sp, instantTrigger)){
             canMsg c = buildSetPacket();
-            ACES::Word<canMsg>* msg = buildWord(c, 0);
-            txDownStream.write(msg);
+            txDownStream.write(buildWord(c, 0));
             return true;
         }
         return false;
@@ -1130,15 +1108,13 @@ namespace Hubo{
 */
     bool MotorDevice::setHIPenable(){
         canMsg c = buildHIPpacket();
-        ACES::Word<canMsg>* msg = buildWord(c, 0);
-        txDownStream.write(msg);
+        txDownStream.write(buildWord(c, 0));
         return true;
     }
 
     bool MotorDevice::setRunCmd(){
         canMsg c = buildRunCmdPacket();
-        ACES::Word<canMsg>* msg = buildWord(c, 0);
-        txDownStream.write(msg);
+        txDownStream.write(buildWord(c, 0));
         return true;
     }
 
@@ -1192,6 +1168,7 @@ namespace Hubo{
                 break;
             default:
                 //TODO - Failure case
+                assert(false);
                 break;
         }
 
@@ -1201,68 +1178,6 @@ namespace Hubo{
         return cm;
     }
 
-/*        
-    canMsg MotorDevice::buildCalibratePulse(int c){ //c - channel number
-        MotorCredentials* cred = (MotorCredentials*)credentials;
-        long offset1 =0, offset2 = 0, offset3 = 0;
-        canMsg msg;
-
-        //The lowest bit in mode is determined by the rotational direction of
-        //the motor 1 for CCW, 0 for CW
-        long mode = 0;
-        if(c > 1){c = 0;} //Treat the 3-channel motor specially
-
-        if(cred->getCCW(c)){
-            mode |= 1;
-        }
-        mode |= (1 << (4+c));
-
-        switch(cred->getChannels()){   //The rest of the processing depends not on which
-                            //channel we've selected, but on the number of
-                            //channels on the controller
-            case 2: //Hubo-Code equiv -> CalPulse()
-                offset1 = calPulse2Chan(c);
-                break;
-            case 3: //Hubo-Code equiv -> CalPulse1()
-                offset1 = calPulse2Chan(0);
-                offset2 = calPulse3Chan(1);
-                offset3 = calPulse3Chan(2);
-                break;
-            default:
-                RTT::Logger::log(RTT::Logger::Warning)
-                << "Cannot call calibrate on a " << cred->getChannels()
-                << " channel controller" << RTT::endlog();
-        } 
-        return canMsg(credentials->getDevID(), CMD_TXDF, GO_LIMIT_POS, 
-                      mode, offset1, offset2, offset3, 0);
-    }
-
-    long MotorDevice::calPulse2Chan(int c){
-        MotorCredentials* cred = (MotorCredentials*)credentials;
-        long offset = 0;
-        if(cred->getOffsetPulse(c) >= 0){
-            offset = (long)(cred->getDirection(c) *
-                            (cred->getOffsetPulse(c) +
-                             cred->getEncoderSize(c) * cred->getRevOffset(c)));
-        }else{
-            offset = (long)(cred->getDirection(c) *
-                            (cred->getOffsetPulse(c) -
-                             cred->getEncoderSize(c)*cred->getRevOffset(c)));
-        }
-        offset = canMsg::bitStuffCalibratePacket(offset);
-        return offset;
-    }
-
-    long MotorDevice::calPulse3Chan(int c){
-        MotorCredentials* cred = (MotorCredentials*)credentials;
-        if(cred->getOffsetPulse(c) == 128){
-            return cred->getDirection(c) * 10 * cred->getRevOffset(c);
-        }
-        else{
-            return 0;
-        }
-    }
-*/
     canMsg MotorDevice::buildHIPpacket(){
         return canMsg( credentials->getDevID(), CMD_TXDF, HIP_ENABLE);
     }
@@ -1297,10 +1212,10 @@ namespace Hubo{
         this->addOperation("programZero", &SensorDevice::programZero, this,
             RTT::OwnThread).doc("Zero all sensor channels");
     }
-
-    ACES::Word<float>* SensorDevice::processUS(ACES::Word<canMsg>* msg){
-        if(*(msg->getCred()) == *credentials){
-            canMsg c = msg->getData();
+    //TODO const
+    bool SensorDevice::processUS(ACES::Word<canMsg>& msg,ACES::Word<float>& usOut){
+        if(*(msg.getCred()) == *credentials){
+            canMsg c = msg.getData();
             switch(c.getType()){
                 case SENSOR_FT_RXDF:
                     processUS_SENSOR_FT_RXDF(msg);
@@ -1332,60 +1247,62 @@ namespace Hubo{
         return NULL;
     }
 
-    void SensorDevice::processUS_SENSOR_FT_RXDF(ACES::Word<canMsg>* msg){
+    void SensorDevice::processUS_SENSOR_FT_RXDF(ACES::Word<canMsg>& msg){
         // For devices which are FT hubolab sensors
         // Channel 0 = Mx, Channel 1 = My, Channel 2 = Fz
-        canMsg c = msg->getData();
+        canMsg c = msg.getData();
         //ROB: What does this new pointer do? Why not just directly use credentials?
         SensorCredentials* cred = (SensorCredentials*)credentials;
         float mx = (signed short)c.getR1() * cred->getScale(0);
         float my = (signed short)c.getR2() * cred->getScale(1);
         float fz = (signed short)c.getR3() * cred->getScale(2);
         
-        ACES::Word<float> *w = new ACES::Word<float>(mx, 0,
+        ACES::Word<float> w1(mx, 0,
                                   credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        txUpStream.write(w1);
 
-        w = new ACES::Word<float>(my, 1, credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        ACES::Word<float> w2(my, 1, credentials->getDevID(), ACES::REFRESH);
+        txUpStream.write(w2);
 
-        w = new ACES::Word<float>(fz, 2, credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        ACES::Word<float> w3(fz, 2, credentials->getDevID(), ACES::REFRESH);
+        txUpStream.write(w3);
     }
 
-    void SensorDevice::processUS_SENSOR_AD_RXDF(ACES::Word<canMsg>* msg){
+    //TODO const
+    void SensorDevice::processUS_SENSOR_AD_RXDF(ACES::Word<canMsg>& msg){
         // For devices which are AD hubolab sensors
         // Channel 0 = Acc1, Channel 1 = Acc2, Channel 2 = Gyro1,
         // Channel 3 = Gyro2
-        canMsg c = msg->getData();
+        canMsg c = msg.getData();
         SensorCredentials* cred = (SensorCredentials*)credentials;
         float acc1 = c.getR1() * cred->getScale(0);
         float acc2 = c.getR2() * cred->getScale(1);
         float gyro1 = c.getR3() * cred->getScale(2);
         float gyro2 = c.getR4() * cred->getScale(3);
         
-        ACES::Word<float> *w = new ACES::Word<float>(acc1, 0,
+        ACES::Word<float> w0(acc1, 0,
                                   credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        txUpStream.write(w0);
 
-        w = new ACES::Word<float>(acc2, 1, credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        ACES::Word<float> w1(acc2, 1, credentials->getDevID(), ACES::REFRESH);
+        txUpStream.write(w1);
 
-        w = new ACES::Word<float>(gyro1, 2, credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        ACES::Word<float> w2(gyro1, 2, credentials->getDevID(), ACES::REFRESH);
+        txUpStream.write(w2);
 
-        w = new ACES::Word<float>(gyro2, 3, credentials->getDevID(), ACES::REFRESH);
-        txUpStream.write(w);
+        ACES::Word<float> w3(gyro2, 3, credentials->getDevID(), ACES::REFRESH);
+        txUpStream.write(w3);
     }
 
-    ACES::Word<canMsg>* SensorDevice::processDS(ACES::Word<float>* w){
-        ACES::Word<canMsg> *msg = NULL;
-        if( w->getMode() == ACES::REFRESH ){
+    //TODO const
+    bool SensorDevice::processDS(ACES::Word<float>& w, ACES::Word<canMsg>& dsOut){
+        if( w.getMode() == ACES::REFRESH ){
             canMsg c(0, SEND_SENSOR_TXDF, CMD_NONE);
-            msg = new ACES::Word<canMsg>(c);
+            //TODO make this function
+            dsOut.setData(c);
+            return true;
         }
-        //TODO: Clean up the input Word here
-        return msg;
+        return false;
     }
 
     /**

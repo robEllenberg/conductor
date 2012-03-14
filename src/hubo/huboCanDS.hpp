@@ -102,10 +102,10 @@ namespace Hubo{
             static unsigned long unpack2byte();
             static unsigned long unpack4byte();
             static unsigned char bitStrip(unsigned long src, int byteNum);
-            canmsg_t* toLineType();
+            canmsg_t toLineType();
         private:                       //   [bits] Meaning
-            canmsg_t* processCMD(canmsg_t*);
-            canmsg_t* processREF(canmsg_t*);
+            bool processCMD(canmsg_t&);
+            bool processREF(canmsg_t&);
 
             unsigned long id;
             huboCanType type;

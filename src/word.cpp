@@ -31,6 +31,13 @@
 #include "word.hpp"
 
 namespace ACES{
+    
+
+    ProtoWord::ProtoWord(){
+        //TODO - is this possible?
+        ProtoWord(0,0,0,NULL);
+    }
+
     ProtoWord::ProtoWord(int nID, int dID, int m, Credentials* c){
         nodeID = nID;
         devID = dID;
@@ -38,22 +45,22 @@ namespace ACES{
         mode = m;
     }
 
-    ProtoWord::ProtoWord(ProtoWord& w){
+    ProtoWord::ProtoWord(const ProtoWord& w){
         nodeID = w.getNodeID();
         devID = w.getDevID();
         cred = w.getCred();
         mode = w.getMode();
     }
 
-    int ProtoWord::getNodeID(){
+    int ProtoWord::getNodeID() const{
         return nodeID;
     }
 
-    int ProtoWord::getDevID(){
+    int ProtoWord::getDevID() const{
         return devID;
     }
 
-    Credentials* ProtoWord::getCred(){
+    Credentials* ProtoWord::getCred() const{
         return cred;
     }
 
@@ -65,8 +72,8 @@ namespace ACES{
         return true;
     }
 
-    int ProtoWord::getMode(){
+    int ProtoWord::getMode() const{
         return mode;
     }
-    
+
 }

@@ -69,26 +69,26 @@ namespace ACES {
         public:
             Hardware(std::string cfg, std::string args);
             void updateHook();
-            void reportTransmission(Message<T>*);
+            void reportTransmission(Message<T>& m);
 
-            virtual bool txBus(Message<T>* m);
+            virtual bool txBus(Message<T>& m);
             virtual void rxBus(int size=0);
 
-            virtual bool processUS(Word<T>*);
-            virtual bool processDS(Message<T>*);
+            virtual bool processUS(Word<T>& m);
+            virtual bool processDS(Message<T>& m);
             bool subscribeProtocol(RTT::TaskContext* p);
 
         protected:
-            RTT::internal::Queue< Word<T>* > usQueue;
-            RTT::OutputPort< Word<T>* > txUpStream;
-            RTT::InputPort< Message<T>* > rxDownStream;
+            std::deque< Word<T> > usQueue;
+            RTT::OutputPort< Word<T> > txUpStream;
+            RTT::InputPort< Message<T> > rxDownStream;
     };
 
     class charHardware : public Hardware<unsigned char>
     {
         public:
             charHardware(std::string cfg, std::string args);
-            bool txBus(ACES::Message<unsigned char>* m);
+            bool txBus(ACES::Message<unsigned char>& m);
         protected:
             boost::asio::io_service io_service;
             boost::asio::serial_port port;
@@ -98,7 +98,7 @@ namespace ACES {
     {
         public:
             pStreamHardware(std::string cfg, std::string args);
-            bool txBus(ACES::Message<unsigned char>* m);
+            bool txBus(ACES::Message<unsigned char>& m);
         protected:
             int ioFD;
             //boost::asio::io_service io_service;

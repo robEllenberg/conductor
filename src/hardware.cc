@@ -32,12 +32,8 @@ namespace ACES {
     template <typename T>
     Hardware<T>::Hardware(std::string cfg, std::string args) :
         ProtoHardware(cfg, args),
-        //txUpStream("txUpStream"),
-        //dsQueue(10),
         usQueue(10)
     {
-        //this->events()->addEvent(&txUpStream, "txUpStream", "word",
-        //                         "Recieved Data");
 
         this->ports()->addPort("TxUS", txUpStream).doc(
                                "UpStream (to Protocol) Transmission");
@@ -47,19 +43,19 @@ namespace ACES {
     }
 
     template <typename T>
-    bool Hardware<T>::processUS(Word<T>* usIn){
+    bool Hardware<T>::processUS(Word<T>& usIn){
         return true;
     }
 
     template <class T>
-    bool Hardware<T>::processDS(Message<T>* dsIn){
+    bool Hardware<T>::processDS(Message<T>& dsIn){
         return true;
     }
 
     template <class T>
     void Hardware<T>::updateHook(){
     
-        Message<T>* dsIn = NULL;
+        Message<T> dsIn;
         while( rxDownStream.read(dsIn) == RTT::NewData ){
             //dsIn->printme();
             if( processDS(dsIn) ){
@@ -71,11 +67,12 @@ namespace ACES {
             }
         }
         rxBus();
-        Word<T>* usIn = NULL;
+        Word<T> usIn;
         //while( rxUpStream.read(usIn) == RTT::NewData ){
         
-        while(not usQueue.isEmpty() ){
-            usQueue.dequeue(usIn);
+        while(not usQueue.empty() ){
+            usIn=usQueue.back();
+            usQueue.pop_back();
             if( processUS(usIn) ){
                 RTT::Logger::log(RTT::Logger::Debug) << "(HW: " 
                                    << name << ") got US"
@@ -87,20 +84,18 @@ namespace ACES {
     }
 
     template<class T>
-    void Hardware<T>::reportTransmission(Message<T>* m){
-        Word<T>* w = m->peek();
+    void Hardware<T>::reportTransmission(Message<T>&m){
+        //Word<T>* w = m->peek();
         //if(w->getMode() == ACES::SET){
             packetReporter.write(1);
         //}
     }
 
     template <class T>
-    bool Hardware<T>::txBus(Message<T>* m){
-        while( m->size() ){
-            Word<T>* w = m->pop();
+    bool Hardware<T>::txBus(Message<T>& m){
+        while( m.size() ){
+            Word<T> w( m.pop());
             txUpStream.write(w);
-            //usQueue.enqueue(w);
-            //TODO - Delete the word
         }
         return true;
     }

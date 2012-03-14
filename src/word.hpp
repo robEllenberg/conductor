@@ -40,13 +40,13 @@ namespace ACES{
     class ProtoWord {
         public:
             ProtoWord();
-            ProtoWord(ProtoWord& w);
+            ProtoWord(const ProtoWord& w);
             ProtoWord(int nID=0, int dID=0, int m=0, Credentials* c=NULL);
 
-            int getNodeID();
-            int getDevID();
-            int getMode();
-            Credentials* getCred();
+            int getNodeID() const;
+            int getDevID() const;
+            int getMode() const;
+            Credentials* getCred() const;
             bool setCred(Credentials* c);
         protected:
             int nodeID; //!Identify the type of node on the Device
@@ -59,36 +59,47 @@ namespace ACES{
     class Word : public ProtoWord {
         public:
             Word();
-            Word( Word& w);
-            Word(T d, Word& w);
+            Word(const Word& w);
+            Word(T d, const Word& w);
             Word(T d, int nID=0, int dID=0, int m=0, Credentials* c=NULL);
 
             void printme();
-            T getData();
+            T getData() const;
+            void setData(T in);
         protected:
             T data;
     };
 
     template <class T>
-    Word<T>::Word(T d, int nID, int dID, int m, Credentials* c)
-     : ProtoWord(nID, dID, m, c),
-       data(d){
-        //data = d;
+    Word<T>::Word()
+     : ProtoWord(0,0,0,NULL),
+       data(){
     }
 
     template <class T>
-    Word<T>::Word( Word &w) : ProtoWord(static_cast<ProtoWord&>(w) ) {
+    Word<T>::Word(T d, int nID, int dID, int m, Credentials* c)
+     : ProtoWord(nID, dID, m, c),
+       data(d){
+    }
+
+    template <class T>
+    Word<T>::Word( const Word &w) : ProtoWord(static_cast<const ProtoWord&>(w) ) {
         data = w.getData();
     }
 
     template <class T>
-    Word<T>::Word(T d, Word& w) : ProtoWord(static_cast<ProtoWord&>(w) ) {
+    Word<T>::Word(T d, const Word& w) : ProtoWord(static_cast<const ProtoWord&>(w) ){
         data = d;
     }
 
     template <class T>
-    T Word<T>::getData(){
+    T Word<T>::getData() const{
         return data;
+    }
+
+    template <class T>
+    void Word<T>::setData(T in){
+        this->data= in;
     }
 
     template <class T>

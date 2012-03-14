@@ -55,16 +55,6 @@ namespace ACES {
         if(not success){
             return false;
         }
-
-        /*RTT::Handle h = d->events()->setupConnection("txDownStream")
-            .callback( this, &Protocol<HW,PD>::rxDownStream,
-                       d->engine()->events()
-                     ).handle();*/
-        
-        /*h = this->events()->setupConnection("txUpStream")
-            .callback( d, &Device<S, PD>::rxUpStream
-        //               ,this->engine()->events()
-                     ).handle();*/
  
         return true;
     }

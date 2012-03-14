@@ -126,25 +126,25 @@ namespace Hubo{
         else	return (unsigned long)((bs) & 0xF );
     }
 
-    canmsg_t* canMsg::toLineType(){
-        canmsg_t* cm = new canmsg_t;
-        cm->flags = 0;
-        cm->cob = 0;
-        //cm->timestamp = 0;
+    canmsg_t canMsg::toLineType(){
+        canmsg_t cm;
+        cm.flags = 0;
+        cm.cob = 0;
+        //cm.timestamp = 0;
         
         switch(type){
             //How to construct the outbound packets
             case CMD_TXDF:
-		cm->id = (unsigned char) type;
+		cm.id = (unsigned char) type;
                 processCMD(cm);
                 break;
             case SEND_SENSOR_TXDF:
-		cm->id = (unsigned char) type;
-                cm->length = 1;
-                cm->data[0] = 0;
+		cm.id = (unsigned char) type;
+                cm.length = 1;
+                cm.data[0] = 0;
                 break;
             case REF_TXDF:
-		cm->id = id + (unsigned char) type;
+		cm.id = id + (unsigned char) type;
                 processREF(cm);
                 break;
             //Inbound packet types are not allowed here, and represent an error
@@ -159,82 +159,84 @@ namespace Hubo{
             case ADOFFSET_RXDF:
             case OFFSET_RXDF:
             default:
-                assert(false);
+                
+                RTT::Logger::log(RTT::Logger::Warning) << "huboCanType not Handled: " << type << RTT::endlog();
+                //assert(false);
         }
         return cm;
     }
 
-    canmsg_t* canMsg::processCMD(canmsg_t* cm){
-        cm->data[0] = (unsigned char)id;
-        cm->data[1] = (unsigned char)subType;
+    bool canMsg::processCMD(canmsg_t& cm){
+        cm.data[0] = (unsigned char)id;
+        cm.data[1] = (unsigned char)subType;
         switch(subType){
             case SET_POS_GAIN_A:
             case SET_POS_GAIN_B:
             case SET_TRQ_GAIN_A:
             case SET_TRQ_GAIN_B:
                 //For the gain setting related cases, r1 = Kp, r2 = Ki, r3 = Kd
-                cm->data[2] = bitStrip(r1, 0);
-                cm->data[3] = bitStrip(r1, 1);
-                cm->data[4] = bitStrip(r2, 0);
-                cm->data[5] = bitStrip(r2, 1);
-                cm->data[6] = bitStrip(r3, 0);
-                cm->data[7] = bitStrip(r3, 1);
-                cm->length = 8;
+                cm.data[2] = bitStrip(r1, 0);
+                cm.data[3] = bitStrip(r1, 1);
+                cm.data[4] = bitStrip(r2, 0);
+                cm.data[5] = bitStrip(r2, 1);
+                cm.data[6] = bitStrip(r3, 0);
+                cm.data[7] = bitStrip(r3, 1);
+                cm.length = 8;
                 break;
             case HIP_ENABLE:
-                cm->data[2] = 1;
-                cm->length = 3; 
+                cm.data[2] = 1;
+                cm.length = 3; 
                 break;
             case RUN_CMD:
-                cm->length = 2;
+                cm.length = 2;
                 break;
             case NAME_INFO:
                 //TODO: Test this
                 //! r1 = command frequency (ms), r2-4 = "Limit" ch (0-2) (no idea what units are)
-                cm->data[2] = bitStrip(r1,0);
-                cm->data[3] = bitStrip(r2,0);
-                cm->data[4] = bitStrip(r3,0);
+                cm.data[2] = bitStrip(r1,0);
+                cm.data[3] = bitStrip(r2,0);
+                cm.data[4] = bitStrip(r3,0);
                 if (r5){
-                    cm->data[5] = bitStrip(r4,0);
-                    cm->length = 6;
+                    cm.data[5] = bitStrip(r4,0);
+                    cm.length = 6;
                 }
-                else cm->length = 5;
+                else cm.length = 5;
                 break;
             case BOARD_STATUS:
                 //!Empty Packet
-                cm->length = 2;
+                cm.length = 2;
                 break;
             case PWM_CMD:
                 //PWM commands are all single bytes, regardless of the number of motors
-                cm->data[2] = (unsigned char)r1;
-                cm->data[3] = bitStrip(r2, 0);
-                cm->data[4] = bitStrip(r2, 1);
-                cm->data[5] = bitStrip(r3, 0);
-                cm->data[6] = bitStrip(r3, 1);
+                cm.data[2] = (unsigned char)r1;
+                cm.data[3] = bitStrip(r2, 0);
+                cm.data[4] = bitStrip(r2, 1);
+                cm.data[5] = bitStrip(r3, 0);
+                cm.data[6] = bitStrip(r3, 1);
                 if(r5){
-                    cm->length = 8;
-                    cm->data[7] = bitStrip(r3, 2);
+                    cm.length = 8;
+                    cm.data[7] = bitStrip(r3, 2);
                 }
-                else cm->length = 7;
+                else cm.length = 7;
                 break;
             case GO_LIMIT_POS:
-                cm->data[2] = (unsigned char)r1; //Copy the mode bits
-                cm->data[3] = bitStrip(r2, 1);
-                cm->data[4] = bitStrip(r2, 0);
-                cm->data[5] = bitStrip(r3, 1);
-                cm->data[6] = bitStrip(r3, 0);
+                cm.data[2] = (unsigned char)r1; //Copy the mode bits
+                cm.data[3] = bitStrip(r2, 1);
+                cm.data[4] = bitStrip(r2, 0);
+                cm.data[5] = bitStrip(r3, 1);
+                cm.data[6] = bitStrip(r3, 0);
 
                 if(r5){     //r5 is only populated in the case of 3ch ctrlr
-                    cm->length = 7;    
+                    cm.length = 7;    
                 }
                 else{
-                    cm->data[7] = bitStrip(r4, 0);
-                    cm->length = 8;
+                    cm.data[7] = bitStrip(r4, 0);
+                    cm.length = 8;
                 }
                 break;
             case NULL_CMD:
-                cm->data[2] = (unsigned char)r1; //Copy the mode bits
-                cm->length = 3;
+                cm.data[2] = (unsigned char)r1; //Copy the mode bits
+                cm.length = 3;
                 break;
             case GO_HOME:
             case CURR_LIMIT:
@@ -253,35 +255,37 @@ namespace Hubo{
             case AD_OFFSET_CMD:
             case OFFSET_CMD:
             default:
+                RTT::Logger::log(RTT::Logger::Warning) << "subType not Handled: " << subType << RTT::endlog();
                 assert(false);
                 break;
         }
-        return cm;
+        return true;
     }
 
-    canmsg_t* canMsg::processREF(canmsg_t* cm){
-        cm->length = 6;
+    bool canMsg::processREF(canmsg_t& cm){
+        cm.length = 6;
         switch((int)subType){
             case 1:
             case 2:
-                cm->data[0] = bitStrip(r1, 0);
-                cm->data[1] = bitStrip(r1, 1);
-                cm->data[2] = bitStrip(r1, 2);
-                cm->data[3] = bitStrip(r2, 0);
-                cm->data[4] = bitStrip(r2, 1);
-                cm->data[5] = bitStrip(r2, 2);
+                cm.data[0] = bitStrip(r1, 0);
+                cm.data[1] = bitStrip(r1, 1);
+                cm.data[2] = bitStrip(r1, 2);
+                cm.data[3] = bitStrip(r2, 0);
+                cm.data[4] = bitStrip(r2, 1);
+                cm.data[5] = bitStrip(r2, 2);
                 break;
             case 3:
-                cm->data[0] = bitStrip(r1, 0);
-                cm->data[1] = bitStrip(r1, 1);
-                cm->data[2] = bitStrip(r2, 0);
-                cm->data[3] = bitStrip(r2, 1);
-                cm->data[4] = bitStrip(r3, 0);
-                cm->data[5] = bitStrip(r3, 1);
+                cm.data[0] = bitStrip(r1, 0);
+                cm.data[1] = bitStrip(r1, 1);
+                cm.data[2] = bitStrip(r2, 0);
+                cm.data[3] = bitStrip(r2, 1);
+                cm.data[4] = bitStrip(r3, 0);
+                cm.data[5] = bitStrip(r3, 1);
                 break;
             default:
+                RTT::Logger::log(RTT::Logger::Warning) << "subType not Handled: " << subType << RTT::endlog();
                 assert(false);
         }
-        return cm;
+        return true;
     }
 } 

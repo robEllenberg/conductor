@@ -42,6 +42,21 @@
 #include "credentials.hpp"
 //#include "state/state.hpp"
 #include "word.hpp"
+#include <boost/optional.hpp>
+
+using namespace boost;
+
+
+/**
+ * Performance improvements.
+ * @todo Replace state, device, protocol, and hardware level word pointers.
+ * Basically, remake all of the ports to pass actual values.
+ * @todo 1) Direct find/replace of pointers with local variables (done)
+ * @todo 2) Find all new statements and replace with static allocations. (done)
+ * @todo 3) rewrite processDS and processUS-type functions to use (done?)
+ * pass the output value by reference (returning a bool type
+ * for success).  The 2nd choice is probably easier for this.
+ */
 
 namespace ACES{
     class ProtoDevice : public ACESTask
@@ -59,30 +74,20 @@ namespace ACES{
     {
         public:
             Device(std::string config);
-            //Device(std::string name);
-            //virtual void rxUpStream(Word<PD>*);
-            //virtual void rxDownStream(Word<S>*);
 
             void updateHook();
 
-            virtual Word<PD>* processDS(Word<S>*);
-            virtual Word<S>* processUS(Word<PD>*);
+            virtual bool processDS(Word<S>& dsIn, Word<PD>& dsOut )=0;
+            virtual bool processUS(Word<PD>& usIn, Word<S>& usOut )=0;
+
             bool subscribeState(RTT::TaskContext* s);
             void printCred();
 
         protected:
-            //RTT::Event<void(Word<PD>*)> txDownStream;
-            //RTT::Event<void(Word<S>*)> txUpStream;
-            //RTT::Queue< Word<S>*, RTT::BlockingPolicy,
-            //           RTT::BlockingPolicy> usQueue;
-            //RTT::Queue< Word<S>*, RTT::NonBlockingPolicy,
-            //           RTT::BlockingPolicy> dsQueue;
-
-            //RTT::Method<bool()> credMethod;
-            RTT::InputPort< Word<S>* > rxDownStream;
-            RTT::InputPort< Word<PD>* > rxUpStream;
-            RTT::OutputPort< Word<PD>* > txDownStream;
-            RTT::OutputPort< Word<S>* > txUpStream;
+            RTT::InputPort< Word<S> > rxDownStream;
+            RTT::InputPort< Word<PD> > rxUpStream;
+            RTT::OutputPort< Word<PD> > txDownStream;
+            RTT::OutputPort< Word<S> > txUpStream;
 
             Credentials* credentials;
     };

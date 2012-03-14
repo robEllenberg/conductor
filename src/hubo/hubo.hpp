@@ -121,18 +121,19 @@ namespace Hubo{
             float scale[senseSize];//! Arbitrary (multiplicative) scaling const
     };
 
-    #ifdef HUBO_TESTMODE
+    #if TESTMODE == 1
     const int canBuffSize = 1; //!The number of lines to load from the log each
                                //tick
     #else
     const int canBuffSize = 100; //!The maximum number of packets we can pull 
                                  // from the FIFO buffer on each tick
     #endif
-    class CANHardware : public ACES::Hardware<canmsg_t*>
+    canmsg_t rxBuffer[canBuffSize]; 
+    class CANHardware : public ACES::Hardware<canmsg_t>
     {
         public:
             CANHardware(std::string cfg, std::string args);
-            virtual bool txBus(ACES::Message<canmsg_t*>* m);
+            virtual bool txBus(ACES::Message<canmsg_t> &m);
             virtual void rxBus(int size=0);
             bool startHook();
             void stopHook();
@@ -142,22 +143,21 @@ namespace Hubo{
         protected:
             std::string fd;
             int rate;
-            #ifdef HUBO_TESTMODE
+            #if TESTMODE == 1
                 std::ifstream ichannel;   //! File descripted for input (offline only)
                 RTT::os::TimeService::ticks beginning;
             #endif
                 int channel;    //! File descriptor for the CAN access node
                                 // Used for output in offline mode
-            RTT::OutputPort< ACES::Message<canmsg_t*>* > txDSLoop;
+            RTT::OutputPort< ACES::Message<canmsg_t> > txDSLoop;
     };
 
-    class Protocol : public ACES::Protocol<canmsg_t*, canMsg> {
+    class Protocol : public ACES::Protocol<canMsg, canmsg_t> {
         public:
             Protocol(std::string cfg, std::string args);
             static ACES::Credentials* credFromPacket(canMsg& c);
-            virtual ACES::Message<canmsg_t*>*
-                      processDS(ACES::Word<canMsg>*);
-            virtual ACES::Word<canMsg>* processUS(ACES::Word<canmsg_t*>* usIn);
+            bool processDS(ACES::Word<canMsg>& h, ACES::Message<canmsg_t>& m);
+            bool processUS(ACES::Word<canmsg_t>& usIn, ACES::Word<canMsg>& usOut);
             //Helper functions
             bool offsetRange(huboCanType t, int lineID);
             unsigned long assemble2Byte(unsigned char lsb, unsigned char msb);
@@ -166,22 +166,24 @@ namespace Hubo{
     class HuboDevice : public ACES::Device<float, canMsg>{
         public: 
             HuboDevice(std::string cfg, std::string args);
-            void processUS_NAME_RXDF(ACES::Word<canMsg>* msg);
-            virtual void processUS_STAT_RXDF(ACES::Word<canMsg>* msg)=0;
+            void processUS_NAME_RXDF(ACES::Word<canMsg> &msg);
+            virtual void processUS_STAT_RXDF(ACES::Word<canMsg> &msg)=0;
         protected:
-            ACES::Word<canMsg>* buildWord(canMsg c, int channel);
+            ACES::Word<canMsg> buildWord(canMsg c, int channel);
             bool CANStatus;
     };
 
     class MotorDevice : public HuboDevice{
         public:
             MotorDevice(std::string cfg, std::string args);
-            virtual ACES::Word<canMsg>* processDS(ACES::Word<float>*);
-            virtual ACES::Word<float>* processUS(ACES::Word<canMsg>*);
-            void processUS_SENSOR_FT_RXDF(ACES::Word<canMsg>* msg);
-            void processUS_AD_RXDF(ACES::Word<canMsg>* msg);
+            bool processDS(ACES::Word<float>& dsIn,
+                    ACES::Word<canMsg> &dsOut);
+            bool processUS(ACES::Word<canMsg>& usIn,
+                    ACES::Word<float>& usOut);
+            void processUS_SENSOR_FT_RXDF(ACES::Word<canMsg> &msg);
+            void processUS_AD_RXDF(ACES::Word<canMsg> &msg);
             int getChannels();
-            void processUS_STAT_RXDF(ACES::Word<canMsg>* msg);
+            void processUS_STAT_RXDF(ACES::Word<canMsg> &msg);
 
             //User facing (local) Configuration functions
             bool setDirection(int channel, float direction);
@@ -212,6 +214,10 @@ namespace Hubo{
             bool setPositionLimits(int chan, float minP, float maxP);
 
             bool checkCAN();
+            //Helpers for buildCalibratePulse
+            //long calPulse2Chan(int c);
+            //long calPulse3Chan(int c);
+            //
             //Functions for generating the different types of configuration
             //packets.
             canMsg buildSetPacket();
@@ -232,12 +238,13 @@ namespace Hubo{
 
     class SensorDevice : public HuboDevice{
         public:
+            //TODO - constant declarations to avoid stepping on toes
             SensorDevice(std::string cfg, std::string args);
-            ACES::Word<float>* processUS(ACES::Word<canMsg>* w);
-            virtual ACES::Word<canMsg>* processDS(ACES::Word<float>*);
-            void processUS_SENSOR_FT_RXDF(ACES::Word<canMsg>* msg);
-            void processUS_SENSOR_AD_RXDF(ACES::Word<canMsg>* msg);
-            void processUS_STAT_RXDF(ACES::Word<canMsg>* msg);
+            bool processUS(ACES::Word<canMsg> &w, ACES::Word<float>& usOut);
+            virtual bool processDS(ACES::Word<float> &dsIn, ACES::Word<canMsg>& dsOut);
+            void processUS_SENSOR_FT_RXDF(ACES::Word<canMsg> &msg);
+            void processUS_SENSOR_AD_RXDF(ACES::Word<canMsg> &msg);
+            void processUS_STAT_RXDF(ACES::Word<canMsg> &msg);
 
             bool programZero();
             canMsg buildZeroPacket(char mode);

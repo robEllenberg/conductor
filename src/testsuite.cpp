@@ -40,6 +40,16 @@ namespace TestSuite{
     {
         this->credentials = new ACES::Credentials(args);
     }
+
+    bool Device::processDS(ACES::Word<float>& dsIn, ACES::Word<float>& dsOut ){
+        dsOut=dsIn;
+        return true;
+    }
+
+    bool Device::processUS(ACES::Word<float>& usIn, ACES::Word<float>& usOut ){
+        usOut=usIn;
+        return true;
+    }
     
     Protocol::Protocol(std::string cfg, std::string args)
       : ACES::Protocol<float,float>(cfg, args)
@@ -66,9 +76,7 @@ namespace TestSuite{
         RTT::Logger::log() << RTT::Logger::Debug << "(State: " << name
                            << ") sample: " << val 
                            << RTT::endlog();
-        ACES::Word<float> *g = new ACES::Word<float>(val, this->nodeID,
-        //                                             0, ACES::REFRESH);
-                                                     0, ACES::SET);
+        ACES::Word<float> g (val, this->nodeID,0, ACES::SET);
         txDownStream.write(g);
     }
 };

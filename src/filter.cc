@@ -42,7 +42,7 @@ namespace ACES{
                            << this->name << ") go: " << (float)sp
                            << RTT::endlog();
         filt.update(sp);
-        Word<T>* w = new Word<T>(filt.getOutput(), this->nodeID, 0, SET);
+        Word<T> w (filt.getOutput(), this->nodeID, 0, SET);
         if(not this->samplingAttr){
             this->value = filt.getOutput();
         }
@@ -50,12 +50,12 @@ namespace ACES{
     }
 
     template <class T>
-    void FilteredState<T>::assign(Word<T>* w){
+    void FilteredState<T>::assign(const Word<T>& w){
         RTT::Logger::log(RTT::Logger::Debug) << "(state: "
                            << this->name << ") Value: "
-                           << w->getData() << RTT::endlog();
+                           << w.getData() << RTT::endlog();
         //Update the filter, and store the filtered output to the history
-        filt.update( w->getData() );
+        filt.update( w.getData() );
         this->value = filt.getOutput();
         /*
         this->hist.update( this->value );
@@ -69,7 +69,7 @@ namespace ACES{
     }
 
     template <class T>
-    T FilteredState<T>::getVal(){
+    T FilteredState<T>::getVal() const{
         return filt.getOutput();
     }
 
@@ -85,7 +85,7 @@ namespace ACES{
     }
 
     template <class T>
-    T ProtoFilter<T>::getOutput(){
+    T ProtoFilter<T>::getOutput() const{
         return value;
     }
 
@@ -108,7 +108,7 @@ namespace ACES{
     }
 
     template <class T>
-    bool SmoothingFilter<T>::update(T xn){
+    bool SmoothingFilter<T>::update(const T& xn){
         //new = previous + (new-oldest)/Length
         // We need the current array size to compute the correct average
         int size = this->size;
@@ -207,7 +207,7 @@ namespace ACES{
         return false;
     }
     template <class T>
-    bool FastFilter<T>::update(T xn){
+    bool FastFilter<T>::update(const T& xn){
         //new = previous + (new-oldest)/Length
         // We need the current array size to compute the correct average
 
@@ -235,7 +235,7 @@ namespace ACES{
     }
 
     template <class T>
-    bool DFFilter<T>::update(T xn){
+    bool DFFilter<T>::update(const T& xn){
         typename std::vector<T>::iterator itData;
         typename boost::circular_buffer<T>::iterator itFilter;
 

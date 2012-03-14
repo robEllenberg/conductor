@@ -29,27 +29,10 @@
 */
 
 namespace ACES{
-    template <class HW, class PD>    
-    Protocol<HW,PD>::Protocol(std::string cfg, std::string args) :
+    template <class PD, class HW>    
+    Protocol<PD,HW>::Protocol(std::string cfg, std::string args) :
       ProtoProtocol(cfg,args) 
-      //txDownStream("txDownStream"),
-      //txUpStream("txUpStream"),
-      //dsQueue(10),
-      //usQueue(10)
     {
-        //requestBuf = new std::deque<Message*>;
-
-        //TODO - Figure out why this flips out when we attempt to declare
-        // it as a member instead of a pointer 
-        //returnBuf = new RTT::Buffer<ProtoResult*>(250);
-        //returnQueue = new std::deque<ProtoResult*>(250);
-        //requestQueue = new std::deque<Goal*>(250);
-        /*
-        this->events()->addEvent(&txDownStream, "txDownStream", "msg",
-                                 "The message to be transmitted");
-        this->events()->addEvent(&txUpStream, "txUpStream", "result",
-                                 "Data struct containing processed result");
-        */
         this->ports()->addEventPort("RxDS", rxDownStream).doc(
                                "DownStream (from Device) Reception");
         this->ports()->addEventPort("RxUS", rxUpStream).doc(
@@ -60,16 +43,16 @@ namespace ACES{
                                "UpStream (to Device) Transmission");
     }
 
-    template <class HW, class PD>    
-    void Protocol<HW,PD>::updateHook(){
-        Word<HW>* usIn = NULL;
-        Word<PD>* usOut = NULL;
-        Word<PD>* dsIn = NULL;
-        Message<HW>* dsOut = NULL;
+    template <class PD, class HW>    
+    void Protocol<PD,HW>::updateHook(){
+        Word<HW> usIn;
+        Word<PD> usOut;
+        Word<PD> dsIn;
+        Message<HW> dsOut;
 
         if(rxUpStream.read(usIn) == RTT::NewData){
             do{
-                if( (usOut = processUS(usIn)) ){
+                if( (processUS(usIn, usOut)) ){
                     RTT::Logger::log(RTT::Logger::Debug) 
                                        << "(Protocol: "
                                        << name << ") got US" << RTT::endlog();
@@ -78,7 +61,7 @@ namespace ACES{
             }while( rxUpStream.read(usIn) == RTT::NewData );
         }else{
             while( rxDownStream.read(dsIn) == RTT::NewData ){
-                if( (dsOut = processDS(dsIn)) ){
+                if( (processDS(dsIn, dsOut)) ){
                     RTT::Logger::log(RTT::Logger::Debug) 
                                        << "(Protocol: " << name << ") got DS"
                                        << RTT::endlog();
@@ -90,29 +73,26 @@ namespace ACES{
 
     }
 
-    template <class HW, class PD>    
-    Message<HW>* Protocol<HW, PD>::processDS(Word<PD>* p){
-        Message<HW>* m = NULL;
-        m = new Message<HW>();
-        //TODO - VERY VERY BAD
-        m->push((Word<HW>*)p);
-        return m;
+    template <class PD, class HW>    
+    bool Protocol<PD, HW>::processDS(Word<PD>& dsIn, Message<HW>& dsOut){
+        //TODO - make this typecast and pass data
+        //dsOut.push(static_cast<Word<PD> >(dsIn));
+        return true;
     }
 
-    template <class HW, class PD>    
-    Word<PD>* Protocol<HW, PD>::processUS(Word<HW>* h){
-        Word<PD>* p = NULL;
+    template <class PD, class HW>    
+    bool Protocol<PD, HW>::processUS(Word<HW>& usIn, Word<PD>& usOut){
 
-        //TODO - Specialized processing function from HWord->PDWord
-        //If we're going to implement some kind of state machine or whatever
-        //it needs to be done here. This default is only meaningful for 
-        //type-same protocols & hardware (not many at all)
-        p = (Word<PD>*)h;
+        //In virtual functions, specialized processing function from
+        //PDord->HWWord If we're going to implement some kind of state machine
+        //or whatever it needs to be done here. This default is only
+        //meaningful for type-same protocols & hardware (not many at all)
+        //usOut = static_cast<Word<HW> >(usIn);
 
-        return p;
+        return true;
     }
 
-    template <class HW, class PD>    
-    void Protocol<HW, PD>::txDSPending(){
+    template <class PD, class HW>    
+    void Protocol<PD, HW>::txDSPending(){
     }
 }

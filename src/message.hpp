@@ -40,26 +40,14 @@ namespace ACES{
     template <class T>
     class Message {
         public:
-            //~Message();
             void printme();
             int size();
-            Word<T>* pop();
-            Word<T>* peek();
-            Word<T>* push(Word<T>* item);
+            Word<T> pop();
+            Word<T> peek();
+            Word<T> push(const Word<T>& item);
         protected:
-            std::deque< Word<T>* > wordList;
+            std::deque< Word<T> > wordList;
     };
-
-    /*
-    using namespace std;
-    template <class T>
-    Message<T>::~Message(){
-        while(wordList.size()){
-            delete wordList.back();
-            wordList.pop_back();
-        }
-    }
-    */
 
     template <class T>
     int Message<T>::size(){
@@ -67,19 +55,19 @@ namespace ACES{
     }
 
     template <class T>
-    Word<T>* Message<T>::pop(){
-        Word<T>* item = wordList.front();
+    Word<T> Message<T>::pop(){
+        Word<T> item = wordList.front();
         wordList.pop_front();
         return item;
     }
 
     template <class T>
-    Word<T>* Message<T>::peek(){
+    Word<T> Message<T>::peek(){
         return wordList.front();
     }
 
     template <class T>
-    Word<T>* Message<T>::push(Word<T>* item){
+    Word<T> Message<T>::push(const Word<T>& item){
         wordList.push_back(item);
         return item;
     }

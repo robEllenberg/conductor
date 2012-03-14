@@ -49,8 +49,8 @@ namespace ACES {
     {
         public:
             ProtoFilter();
-            virtual bool update(T newVal)=0;
-            virtual T getOutput();
+            virtual bool update(const T& newVal)=0;
+            virtual T getOutput() const;
         protected:
             T value;
     };
@@ -60,7 +60,7 @@ namespace ACES {
     {
         public:
             SmoothingFilter(int size=10);
-            bool update(T newVal);
+            bool update(const T& newVal);
             bool setDelay(int samples);
         private:
             int sanitizeDelay(int samples);
@@ -77,7 +77,7 @@ namespace ACES {
     {
         public:
             FastFilter(int size=10);
-            bool update(T newVal);
+            bool update(const T& newVal);
             bool setDelay(int samples);
         private:
             boost::circular_buffer<T> xBuffer;
@@ -93,7 +93,7 @@ namespace ACES {
         public:
             /** Constructor to take coefficient vectors */
             DFFilter(std::vector<T> a,std::vector<T> b);
-            bool update(T newVal);
+            bool update(const T& newVal);
         private:
 
             /**
@@ -115,8 +115,8 @@ namespace ACES {
             //TODO: Make fLength unsigned
 
             void go(T sp);
-            void assign(Word<T>* w);
-            T getVal();
+            void assign(const Word<T>& w);
+            T getVal() const;
             void setDelay(int fLength);
         protected:
             FastFilter<float> filt;
