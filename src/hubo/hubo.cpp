@@ -344,7 +344,8 @@ namespace Hubo{
 
     bool CANHardware::startHook(){
 
-        #if TESTMODE == 1
+        #ifdef HUBO_TESTMODE
+
             beginning = RTT::os::TimeService::Instance()->getTicks();
             std::string ofd = fd + ".out";
             channel = open(ofd.c_str(), O_WRONLY | O_CREAT | O_TRUNC,
@@ -382,7 +383,7 @@ namespace Hubo{
     
     void CANHardware::stopHook(){
         close(channel);
-        #if TESTMODE == 1
+        #ifdef HUBO_TESTMODE
             ichannel.close();
         #endif
     }
@@ -420,6 +421,10 @@ namespace Hubo{
             case 0:
                 break;
             default:
+                //TODO, Rob: Should this be an automatic assert false? This
+                //seems pretty drastic.  It might be better to log the error
+                //and fail gracefully.  Maybe make this controllable through a
+                //build flag.
                 assert(0);
         }
         ACES::Word<canmsg_t> msgWord(msg);
@@ -437,7 +442,7 @@ namespace Hubo{
             canmsg_t msg;
             msg = w.getData();
             int r = 0;
-            #if TESTMODE == 1
+            #ifdef HUBO_TESTMODE
                 //Grab the current time and copy it to a string
                 RTT::Seconds sampleTime =
                     RTT::os::TimeService::Instance()->secondsSince(beginning);
@@ -476,7 +481,7 @@ namespace Hubo{
         unsigned long msgID = 0;
         std::string junk;
 
-        #if TESTMODE == 1 //Offline operation
+        #ifdef HUBO_TESTMODE //Offline operation
 
             char linebuf[100];
             while( (not ichannel.eof()) and (rxSize < canBuffSize)){
@@ -652,7 +657,9 @@ namespace Hubo{
                     return true;
                 } break;
             default:
-
+                //TODO - graceful failure and logging of error.  Need
+                //convenient logging macros like in openrave (using fprintf or
+                //something).
                 assert(false);
         }
         return false;
@@ -1167,7 +1174,7 @@ namespace Hubo{
                 subcmd = PWM_CMD;
                 break;
             default:
-                //TODO - Failure case
+                //TODO - Failure case. This really shouldn't be an assert for the production code.  Graceful failure.
                 assert(false);
                 break;
         }
