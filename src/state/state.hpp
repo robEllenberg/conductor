@@ -185,8 +185,8 @@ namespace ACES {
             void printme();
             void printHistory();
             virtual void go(T sp);
-            virtual void assign(Word<T>* w);
-            virtual T getVal();
+            virtual void assign(Word<T> w);
+            virtual T getVal() const;
             int kInt;
             float getInt();
             float getDiff();
@@ -194,7 +194,7 @@ namespace ACES {
             bool updateInt(Sample<T> cur, Sample<T> last);
             bool updateDiff(Sample<T> cur, Sample<T> last);
 
-            virtual Word<T>* processDS( std::map<std::string, void*>* p );
+            virtual bool processDS( std::map<std::string, void*>* p, Word<T> dsOut);
 
         protected:
             T value;
@@ -203,9 +203,9 @@ namespace ACES {
             /// The State'
             History<T> hist;
             /// Data port for sending data to a Device
-            RTT::OutputPort< Word<T>* > txDownStream;
+            RTT::OutputPort< Word<T> > txDownStream;
             /// Data port for receiving data from a Device
-            RTT::InputPort< Word<T>* > rxUpStream;
+            RTT::InputPort< Word<T> > rxUpStream;
             /// Data port for receiving data from a Controller
             RTT::InputPort< std::map<std::string, void*>* > rxDownStream;
             

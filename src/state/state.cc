@@ -173,15 +173,15 @@ namespace ACES{
     template <class T>
     void State<T>::updateHook(){
         std::map<std::string, void*>* dsIn = NULL;
-        Word<T>* dsOut = NULL;
-        Word<T>* usIn = NULL;
+        Word<T> dsOut;
+        Word<T> usIn;
 
         if( rxDownStream.read(dsIn) == RTT::NewData ){
             do{
                 RTT::Logger::log(RTT::Logger::Debug) << "(state: " 
                        << name << ") rxDS" << RTT::endlog();
 
-                if( (dsOut = processDS(dsIn)) ){
+                if( (processDS(dsIn,dsOut)) ){
                     txDownStream.write(dsOut);
                 }
             }
@@ -192,7 +192,7 @@ namespace ACES{
                 RTT::Logger::log(RTT::Logger::Debug) << "(state: " 
                        << name << ") rxUS" << RTT::endlog();
                                    
-                if(usIn->getNodeID() == nodeID){
+                if(usIn.getNodeID() == nodeID){
                     RTT::Logger::log(RTT::Logger::Debug) << "(state: "
                                        << name << ") assign"
                                        << RTT::endlog();
@@ -220,7 +220,7 @@ namespace ACES{
         RTT::Logger::log(RTT::Logger::Debug) << "(state: "
                            << name << ") sample"
                            << RTT::endlog();
-        Word<T>* s = new Word<T>(0., nodeID, 0, REFRESH);
+        Word<T> s (0., nodeID, 0, REFRESH);
         txDownStream.write(s);
     }
 
@@ -242,7 +242,7 @@ namespace ACES{
         RTT::Logger::log(RTT::Logger::Debug) << "(state: "
                            << name << ") go: " << (float)sp
                            << RTT::endlog();
-        Word<T>* w = new Word<T>(sp, nodeID, 0, SET);
+        Word<T> w (sp, nodeID, 0, SET);
         txDownStream.write(w);
         if(not samplingAttr){
             value = sp;
@@ -250,12 +250,12 @@ namespace ACES{
     }
 
     template <class T>
-    void State<T>::assign(Word<T>* w){
+    void State<T>::assign(Word<T> w){
         RTT::Logger::log(RTT::Logger::Debug) << "(state: "
                            << this->name << ") Value: "
-                           << w->getData() << RTT::endlog();
-        hist.update( w->getData() );
-        value = w->getData();
+                           << w.getData() << RTT::endlog();
+        hist.update( w.getData() );
+        value = w.getData();
 
         if(intEnable){
             updateInt(hist.getSample(0), hist.getSample(1));
@@ -267,7 +267,7 @@ namespace ACES{
     }
 
     template <class T>
-    T State<T>::getVal(){
+    T State<T>::getVal() const{
         return value;
     }
 
@@ -300,7 +300,7 @@ namespace ACES{
     }
 
     template <class T>
-    Word<T>* State<T>::processDS( std::map<std::string, void*>* p ){
+    bool State<T>::processDS( std::map<std::string, void*>* p, Word<T> dsOut ){
        //RTT::Logger::log() << "trigger " + name << RTT::endlog();
        std::map<std::string, void* >::iterator mypair;
         mypair = p->find( name );
@@ -308,10 +308,9 @@ namespace ACES{
             void* pval = (*mypair).second;
             T val = *((T*)pval);
             go(val);
-            //Word<T>* w = new Word<T>(val, nodeID, 0, SET);
-            //return w; 
+            return true;
         }
-        return NULL;
+        return false;
     }
 
     template <class T>
