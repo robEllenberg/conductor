@@ -33,10 +33,13 @@
 
 #include <string>
 #include <sstream>
+#include <map>
 #include <boost/lexical_cast.hpp>
 #include <rtt/TaskContext.hpp>
 #include <rtt/Activity.hpp>
 #include <ocl/TimerComponent.hpp>
+
+using namespace std;
 
 namespace ACES{
 
